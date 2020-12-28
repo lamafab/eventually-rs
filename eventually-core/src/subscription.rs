@@ -176,9 +176,9 @@ impl<Store, Subscriber> Subscription for Transient<Store, Subscriber>
 where
     Store: EventStore + Send + Sync,
     Subscriber: EventSubscriber<
-            SourceId = <Store as EventStore>::SourceId,
-            Event = <Store as EventStore>::Event,
-        > + Send
+        SourceId = <Store as EventStore>::SourceId,
+        Event = <Store as EventStore>::Event,
+    > + Send
         + Sync,
     <Store as EventStore>::SourceId: Send + Sync,
     <Store as EventStore>::Event: Send + Sync,
