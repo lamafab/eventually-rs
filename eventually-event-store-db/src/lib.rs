@@ -1,5 +1,6 @@
 //! EventStoreDB backend implementation for [`eventually` crate](https://crates.io/crates/eventually).
 
+// TODO: cast required?
 use eventstore::Client as EsClient;
 use std::error::Error;
 
