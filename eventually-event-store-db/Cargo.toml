@@ -10,3 +10,7 @@ repository = "https://github.com/eventually-rs/eventually-rs"
 
 categories = ["web-programming", "asynchronous"]
 keywords = ["event-store-db", "eventstoredb", "eventually", "event-store", "ddd", "event-sourcing"]
+
+[dependencies]
+eventually = { version = "0.4.0", path = "../eventually", features = ["serde"] }
+eventstore = "0.9.9"
