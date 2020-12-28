@@ -1,0 +1,12 @@
+[package]
+name = "eventually-event-store-db"
+description = "Event Store implementation using EventStoreDb, for Eventually crate"
+version = "0.9.0"
+edition = "2018"
+authors = ["Fabio Lama <fabio.lama@pm.me>"]
+license = "MIT"
+readme = "../README.md"
+repository = "https://github.com/eventually-rs/eventually-rs"
+
+categories = ["web-programming", "asynchronous"]
+keywords = ["event-store-db", "eventstoredb", "eventually", "event-store", "ddd", "event-sourcing"]
