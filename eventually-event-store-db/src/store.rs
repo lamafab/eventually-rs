@@ -1,5 +1,6 @@
 use eventstore::prelude::{
-    CurrentRevision, Error as EsError, EventData, ExpectedRevision, WrongExpectedVersion,
+    CurrentRevision, Error as EsError, EventData, ExpectedRevision, ExpectedVersion,
+    WrongExpectedVersion,
 };
 use eventstore::Client as EsClient;
 use eventually::store::Expected;
@@ -64,16 +65,25 @@ where
         events: Vec<Self::Event>,
     ) -> BoxFuture<Result<u32>> {
         let fut = async move {
-            self.client
+            let next_version = self
+                .client
                 .write_events(format!("{}", source_id))
+                .expected_version({
+                    match version {
+                        Expected::Any => ExpectedVersion::Any,
+                        Expected::Exact(v) => ExpectedVersion::Exact(v as u64),
+                    }
+                })
                 .send_iter(
                     events
                         .into_iter()
                         .map(|event| EventData::json("", event).unwrap()),
                 )
-                .await??;
+                .await??
+                .next_expected_version;
 
-            Ok(0)
+            // TODO: What if it overflows?
+            Ok(next_version as u32)
         };
 
         Box::pin(fut)
