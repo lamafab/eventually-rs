@@ -1,5 +1,5 @@
 use eventstore::prelude::{
-    CurrentRevision, Error as EsError, EventData, ExpectedRevision, ExpectedVersion, Position,
+    Error as EsError, EventData, ExpectedVersion, Position,
     ReadResult, ResolvedEvent, WrongExpectedVersion,
 };
 use eventstore::Client as EsClient;
@@ -9,11 +9,9 @@ use futures::future::BoxFuture;
 use futures::stream::{Stream, StreamExt};
 use serde::{de::DeserializeOwned, ser::Serialize};
 use serde_json::error::Error as SerdeError;
-use std::fmt;
 use std::fmt::Display;
-use std::future::Future;
 use std::marker::PhantomData;
-use std::pin::Pin;
+use std::convert::TryFrom;
 
 // TODO: Rename to `StoreResult`?
 type Result<T> = std::result::Result<T, StoreError>;
@@ -67,8 +65,6 @@ pub struct EventStore<Id, Event> {
     _p1: PhantomData<Id>,
     _p2: PhantomData<Event>,
 }
-
-use std::convert::TryFrom;
 
 impl<Id, Event> eventually::EventStore for EventStore<Id, Event>
 where
@@ -169,8 +165,18 @@ where
         Box::pin(fut)
     }
 
-    fn remove(&mut self, _id: Self::SourceId) -> BoxFuture<Result<()>> {
-        unimplemented!()
+    fn remove(&mut self, id: Self::SourceId) -> BoxFuture<Result<()>> {
+        let fut = async move {
+            Ok(self
+                .client
+                .delete_stream(format!("{}", id))
+                .soft_delete()
+                .execute()
+                .await
+                .map(|_| ())?)
+        };
+
+        Box::pin(fut)
     }
 }
 
