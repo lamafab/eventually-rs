@@ -8,6 +8,7 @@ use eventually::store::{AppendError, EventStream, Expected, Persisted, Select};
 use futures::future::BoxFuture;
 use futures::stream::StreamExt;
 use serde::{de::DeserializeOwned, ser::Serialize};
+use serde_json::error::Error as SerdeError;
 use std::fmt;
 use std::fmt::Display;
 use std::future::Future;
@@ -27,14 +28,27 @@ pub enum StoreError {
         EsError,
     ),
     // TODO: Prettify this
-    #[error("Wrong event version, current: {:?}, expected: {:?}", .0.current, .0.expected)]
+    #[error("wrong event version (current: {:?}, expected: {:?})", .0.current, .0.expected)]
     UnexpectedVersion(
         #[source]
         #[from]
         WrongExpectedVersion,
     ),
-    #[error("Specified stream was not found: {0}")]
+    #[error("specified stream was not found: {0}")]
     StreamNotFound(String),
+    // TODO: Consider changed this to `u64`
+    #[error("failed to serialize event: {0}")]
+    FailedEventSer(
+        #[source]
+        #[from]
+        SerdeError,
+    ),
+    #[error("failed to deserialize event (event version: {}): {}", .version, .serde_err)]
+    FailedEventDes {
+        version: u32,
+        #[source]
+        serde_err: SerdeError,
+    },
 }
 
 impl AppendError for StoreError {
@@ -80,7 +94,11 @@ where
                 .send_iter(
                     events
                         .into_iter()
-                        .map(|event| EventData::json("", event).unwrap()),
+                        .map(|event| {
+                            EventData::json("", event)
+                                .map_err(|err| StoreError::FailedEventSer(err))
+                        })
+                        .collect::<Result<Vec<EventData>>>()?,
                 )
                 .await??
                 .next_expected_version;
@@ -119,11 +137,17 @@ where
                     };
 
                     Ok(stream.map(move |resolved| {
-                        let event = resolved.unwrap().event.unwrap();
+                        // TODO: Clarify in what cases `event` might be `None`.
+                        let event = resolved?.event.unwrap();
 
                         Ok(Persisted::from(
                             source_id.clone(),
-                            serde_json::from_slice::<Event>(event.data.as_ref()).unwrap(),
+                            serde_json::from_slice::<Event>(event.data.as_ref()).map_err(
+                                |err| StoreError::FailedEventDes {
+                                    version: event.revision as u32,
+                                    serde_err: err,
+                                },
+                            )?,
                         )
                         .version(event.revision as u32)
                         .sequence_number(0))
