@@ -1,13 +1,13 @@
 use eventstore::prelude::{
-    CurrentRevision, Error as EsError, EventData, ExpectedRevision, ExpectedVersion,
+    CurrentRevision, Error as EsError, EventData, ExpectedRevision, ExpectedVersion, ReadResult,
     WrongExpectedVersion,
 };
 use eventstore::Client as EsClient;
-use eventually::store::Expected;
+use eventually::store::{AppendError, EventStream, Expected, Persisted, Select};
 // TODO: Alias `EventStream` as `StoreEventStream`
-use eventually::store::{AppendError, EventStream, Select};
 use futures::future::BoxFuture;
-use serde::ser::Serialize;
+use futures::stream::StreamExt;
+use serde::{de::DeserializeOwned, ser::Serialize};
 use std::fmt;
 use std::fmt::Display;
 use std::future::Future;
@@ -33,6 +33,8 @@ pub enum StoreError {
         #[from]
         WrongExpectedVersion,
     ),
+    #[error("Specified stream was not found: {0}")]
+    StreamNotFound(String),
 }
 
 impl AppendError for StoreError {
@@ -52,8 +54,8 @@ pub struct EventStore<Id, Event> {
 
 impl<Id, Event> eventually::EventStore for EventStore<Id, Event>
 where
-    Id: Send + Eq + Display,
-    Event: 'static + Sync + Send + Serialize,
+    Id: Send + Sync + Eq + Display + Clone,
+    Event: 'static + Sync + Send + Serialize + DeserializeOwned,
 {
     type SourceId = Id;
     type Event = Event;
@@ -96,7 +98,41 @@ where
         source_id: Self::SourceId,
         select: Select,
     ) -> BoxFuture<Result<EventStream<Self>>> {
-        unimplemented!()
+        let fut = async move {
+            self.client
+                .read_stream(format!("{}", source_id))
+                .start_from({
+                    match select {
+                        Select::All => 0,
+                        Select::From(v) => v as u64,
+                    }
+                })
+                // TODO: `read_through` or `execute`?
+                .read_through()
+                .await
+                .map(|read_res| {
+                    let stream = match read_res {
+                        ReadResult::Ok(s) => s,
+                        ReadResult::StreamNotFound(name) => {
+                            return Err(StoreError::StreamNotFound(name))
+                        }
+                    };
+
+                    Ok(stream.map(move |resolved| {
+                        let event = resolved.unwrap().event.unwrap();
+
+                        Ok(Persisted::from(
+                            source_id.clone(),
+                            serde_json::from_slice::<Event>(event.data.as_ref()).unwrap(),
+                        )
+                        .version(event.revision as u32)
+                        .sequence_number(0))
+                    }))
+                })?
+                .map(|stream| stream.boxed())
+        };
+
+        Box::pin(fut)
     }
 
     fn stream_all(&self, select: Select) -> BoxFuture<Result<EventStream<Self>>> {
