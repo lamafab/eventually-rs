@@ -1,17 +1,17 @@
 use eventstore::prelude::{
-    Error as EsError, EventData, ExpectedVersion, Position,
-    ReadResult, ResolvedEvent, WrongExpectedVersion,
+    Error as EsError, EventData, ExpectedVersion, Position, ReadResult, ResolvedEvent,
+    WrongExpectedVersion,
 };
 use eventstore::Client as EsClient;
 use eventually::store::{AppendError, EventStream, Expected, Persisted, Select};
 // TODO: Alias `EventStream` as `StoreEventStream`
 use futures::future::BoxFuture;
-use futures::stream::{Stream, StreamExt};
+use futures::stream::{empty as empty_stream, Stream, StreamExt};
 use serde::{de::DeserializeOwned, ser::Serialize};
 use serde_json::error::Error as SerdeError;
+use std::convert::TryFrom;
 use std::fmt::Display;
 use std::marker::PhantomData;
-use std::convert::TryFrom;
 
 // TODO: Rename to `StoreResult`?
 type Result<T> = std::result::Result<T, StoreError>;
@@ -32,6 +32,7 @@ pub enum StoreError {
         #[from]
         WrongExpectedVersion,
     ),
+    // TODO: Remove this?
     #[error("specified stream was not found: {0}")]
     StreamNotFound(String),
     // TODO: Consider changed this to `u64`
@@ -131,9 +132,7 @@ where
                 .map(|read_res| {
                     let stream = match read_res {
                         ReadResult::Ok(s) => s,
-                        ReadResult::StreamNotFound(name) => {
-                            return Err(StoreError::StreamNotFound(name))
-                        }
+                        ReadResult::StreamNotFound(_) => return Ok(empty_stream().boxed()),
                     };
 
                     process_stream(stream)
