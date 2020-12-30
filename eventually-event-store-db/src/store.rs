@@ -68,7 +68,7 @@ pub struct EventStore<Id, Event> {
 
 impl<Id, Event> eventually::EventStore for EventStore<Id, Event>
 where
-    Id: Send + Sync + Eq + Display + Clone,
+    Id: 'static + Send + Sync + Eq + Display + Clone,
     Event: 'static + Sync + Send + Serialize + DeserializeOwned,
 {
     type SourceId = Id;
@@ -136,31 +136,15 @@ where
                         }
                     };
 
-                    Ok(stream.map(move |resolved| {
-                        // TODO: Clarify in what cases `event` might be `None`.
-                        let event = resolved?.event.unwrap();
-
-                        Ok(Persisted::from(
-                            source_id.clone(),
-                            serde_json::from_slice::<Event>(event.data.as_ref()).map_err(
-                                |err| StoreError::FailedEventDes {
-                                    version: event.revision as u32,
-                                    serde_err: err,
-                                },
-                            )?,
-                        )
-                        .version(event.revision as u32)
-                        .sequence_number(0))
-                    }))
+                    process_stream(source_id, stream)
                 })?
-                .map(|stream| stream.boxed())
         };
 
         Box::pin(fut)
     }
 
     fn stream_all(&self, select: Select) -> BoxFuture<Result<EventStream<Self>>> {
-        unimplemented!()
+        unimplemented!();
     }
 
     fn remove(&mut self, _id: Self::SourceId) -> BoxFuture<Result<()>> {
@@ -177,30 +161,29 @@ where
 
 fn process_stream<Id, Event>(
     id: Id,
-    stream: Box<dyn Stream<Item = Result<ResolvedEvent>> + Send + Unpin>,
-) -> BoxFuture<'static, Result<EventStream<'static, EventStore<Id, Event>>>>
+    stream: Box<dyn Stream<Item = std::result::Result<ResolvedEvent, EsError>> + Send + Unpin>,
+) -> Result<EventStream<'static, EventStore<Id, Event>>>
 where
     Id: 'static + Send + Sync + Eq + Display + Clone,
     Event: 'static + Sync + Send + Serialize + DeserializeOwned,
 {
-    Box::pin(async move {
-        Ok(stream
-            .map(move |resolved| {
-                // TODO: Clarify in what cases `event` might be `None`.
-                let event = resolved?.event.unwrap();
+    let id = id.clone();
+    Ok(stream
+        .map(move |resolved| {
+            // TODO: Clarify in what cases `event` might be `None`.
+            let event = resolved?.event.unwrap();
 
-                Ok(Persisted::from(
-                    id.clone(),
-                    serde_json::from_slice::<Event>(event.data.as_ref()).map_err(|err| {
-                        StoreError::FailedEventDes {
-                            version: event.revision as u32,
-                            serde_err: err,
-                        }
-                    })?,
-                )
-                .version(event.revision as u32)
-                .sequence_number(0))
-            })
-            .boxed())
-    })
+            Ok(Persisted::from(
+                id.clone(),
+                serde_json::from_slice::<Event>(event.data.as_ref()).map_err(|err| {
+                    StoreError::FailedEventDes {
+                        version: event.revision as u32,
+                        serde_err: err,
+                    }
+                })?,
+            )
+            .version(event.revision as u32)
+            .sequence_number(0))
+        })
+        .boxed())
 }
