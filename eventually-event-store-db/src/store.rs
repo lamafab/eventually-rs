@@ -35,11 +35,12 @@ pub enum StoreError {
     ),
 }
 
-// TODO: Clarify this
 impl AppendError for StoreError {
-    #[inline]
     fn is_conflict_error(&self) -> bool {
-        false
+        match self {
+            StoreError::UnexpectedVersion(_) => true,
+            _ => false,
+        }
     }
 }
 
@@ -83,6 +84,7 @@ where
                 .next_expected_version;
 
             // TODO: What if it overflows?
+            // TODO: Should this be current version or next expected version?
             Ok(next_version as u32)
         };
 
