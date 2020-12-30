@@ -11,6 +11,9 @@ mod subscription;
 
 type Result<T> = std::result::Result<T, BuilderError>;
 
+// Re-exports
+pub use store::EventStore;
+
 /// Error type returned by ['EventStoreBuilder'].
 #[derive(Debug, thiserror::Error)]
 pub enum BuilderError {
@@ -39,6 +42,10 @@ impl EventStoreBuilder {
             .await
             .map_err(|err| BuilderError::GRpcClient(err))?,
         })
+    }
+    /// Builds the event store instance. This function can be called multiple times.
+    pub fn build_store<Id, Event>(&self) -> EventStore<Id, Event> {
+        EventStore::new(self.client.clone())
     }
 }
 

@@ -61,10 +61,21 @@ impl AppendError for StoreError {
     }
 }
 
+///
 pub struct EventStore<Id, Event> {
     client: EsClient,
     _p1: PhantomData<Id>,
     _p2: PhantomData<Event>,
+}
+
+impl<Id, Event> EventStore<Id, Event> {
+    pub(super) fn new(client: EsClient) -> EventStore<Id, Event> {
+        EventStore {
+            client: client,
+            _p1: PhantomData,
+            _p2: PhantomData,
+        }
+    }
 }
 
 impl<Id, Event> eventually::EventStore for EventStore<Id, Event>
