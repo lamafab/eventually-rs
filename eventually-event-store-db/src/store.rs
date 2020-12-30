@@ -1,6 +1,6 @@
 use eventstore::prelude::{
-    CurrentRevision, Error as EsError, EventData, ExpectedRevision, ExpectedVersion, ReadResult,
-    ResolvedEvent, WrongExpectedVersion,
+    CurrentRevision, Error as EsError, EventData, ExpectedRevision, ExpectedVersion, Position,
+    ReadResult, ResolvedEvent, WrongExpectedVersion,
 };
 use eventstore::Client as EsClient;
 use eventually::store::{AppendError, EventStream, Expected, Persisted, Select};
@@ -49,6 +49,8 @@ pub enum StoreError {
         #[source]
         serde_err: SerdeError,
     },
+    #[error("failed to convert stream ID to source id: {0}")]
+    FailedStreamIdConv(String),
 }
 
 impl AppendError for StoreError {
@@ -66,9 +68,11 @@ pub struct EventStore<Id, Event> {
     _p2: PhantomData<Event>,
 }
 
+use std::convert::TryFrom;
+
 impl<Id, Event> eventually::EventStore for EventStore<Id, Event>
 where
-    Id: 'static + Send + Sync + Eq + Display + Clone,
+    Id: 'static + Send + Sync + Eq + Display + Clone + TryFrom<String>,
     Event: 'static + Sync + Send + Serialize + DeserializeOwned,
 {
     type SourceId = Id;
@@ -136,7 +140,7 @@ where
                         }
                     };
 
-                    process_stream(source_id, stream)
+                    process_stream(stream)
                 })?
         };
 
@@ -144,7 +148,25 @@ where
     }
 
     fn stream_all(&self, select: Select) -> BoxFuture<Result<EventStream<Self>>> {
-        unimplemented!();
+        let fut = async move {
+            self.client
+                .read_all()
+                .start_from({
+                    match select {
+                        Select::All => Position::start(),
+                        Select::From(v) => Position {
+                            commit: v as u64,
+                            prepare: v as u64,
+                        },
+                    }
+                })
+                // TODO: `read_through` or `execute`?
+                .read_through()
+                .await
+                .map(|stream| process_stream(stream))?
+        };
+
+        Box::pin(fut)
     }
 
     fn remove(&mut self, _id: Self::SourceId) -> BoxFuture<Result<()>> {
@@ -152,29 +174,22 @@ where
     }
 }
 
-impl<Id, Event> EventStore<Id, Event>
-where
-    Id: Send + Sync + Eq + Display + Clone,
-    Event: 'static + Sync + Send + Serialize + DeserializeOwned,
-{
-}
-
 fn process_stream<Id, Event>(
-    id: Id,
     stream: Box<dyn Stream<Item = std::result::Result<ResolvedEvent, EsError>> + Send + Unpin>,
 ) -> Result<EventStream<'static, EventStore<Id, Event>>>
 where
-    Id: 'static + Send + Sync + Eq + Display + Clone,
+    Id: 'static + Send + Sync + Eq + Display + Clone + TryFrom<String>,
     Event: 'static + Sync + Send + Serialize + DeserializeOwned,
 {
-    let id = id.clone();
     Ok(stream
         .map(move |resolved| {
             // TODO: Clarify in what cases `event` might be `None`.
-            let event = resolved?.event.unwrap();
+            let mut event = resolved?.event.unwrap();
 
+            let stream_id = std::mem::take(&mut event.stream_id);
             Ok(Persisted::from(
-                id.clone(),
+                Id::try_from(stream_id.clone())
+                    .map_err(|_| StoreError::FailedStreamIdConv(stream_id))?,
                 serde_json::from_slice::<Event>(event.data.as_ref()).map_err(|err| {
                     StoreError::FailedEventDes {
                         version: event.revision as u32,
