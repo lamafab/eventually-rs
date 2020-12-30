@@ -21,35 +21,40 @@ type Result<T> = std::result::Result<T, StoreError>;
 /// TODO
 #[derive(Debug, thiserror::Error)]
 pub enum StoreError {
+    /// TODO
     #[error("EventStoreDB error: {0}")]
     EventStoreDb(
         #[source]
         #[from]
         EsError,
     ),
-    // TODO: Prettify this
+    /// TODO: Prettify this
     #[error("wrong event version (current: {:?}, expected: {:?})", .0.current, .0.expected)]
     UnexpectedVersion(
         #[source]
         #[from]
         WrongExpectedVersion,
     ),
-    // TODO: Remove this?
+    /// TODO: Remove this?
     #[error("specified stream was not found: {0}")]
     StreamNotFound(String),
-    // TODO: Consider changed this to `u64`
+    /// TODO: Consider changed this to `u64`
     #[error("failed to serialize event: {0}")]
     FailedEventSer(
         #[source]
         #[from]
         SerdeError,
     ),
+    /// TODO
     #[error("failed to deserialize event (event version: {}): {}", .version, .serde_err)]
     FailedEventDes {
+        /// TODO
         version: u32,
+        /// TODO
         #[source]
         serde_err: SerdeError,
     },
+    /// TODO
     #[error("failed to convert stream ID to source id: {0}")]
     FailedStreamIdConv(String),
 }

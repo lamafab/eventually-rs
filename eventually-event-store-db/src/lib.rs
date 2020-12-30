@@ -12,7 +12,7 @@ mod subscription;
 type Result<T> = std::result::Result<T, BuilderError>;
 
 // Re-exports
-pub use store::EventStore;
+pub use store::{EventStore, StoreError};
 
 /// Error type returned by ['EventStoreBuilder'].
 #[derive(Debug, thiserror::Error)]
