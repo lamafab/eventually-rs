@@ -12,11 +12,13 @@ use serde_json::error::Error as SerdeError;
 use std::convert::TryFrom;
 use std::fmt::Display;
 use std::marker::PhantomData;
+use std::time::Duration;
+use tokio::time;
 
 // TODO: Rename to `StoreResult`?
 type Result<T> = std::result::Result<T, StoreError>;
 
-///
+/// TODO
 #[derive(Debug, thiserror::Error)]
 pub enum StoreError {
     #[error("EventStoreDB error: {0}")]
@@ -61,7 +63,7 @@ impl AppendError for StoreError {
     }
 }
 
-///
+/// TODO
 pub struct EventStore<Id, Event> {
     client: EsClient,
     _p1: PhantomData<Id>,
@@ -75,6 +77,23 @@ impl<Id, Event> EventStore<Id, Event> {
             _p1: PhantomData,
             _p2: PhantomData,
         }
+    }
+    #[cfg(feature = "verify-connection")]
+    pub(super) async fn verify_connection(client: &EsClient, timeout: u64) -> Result<()> {
+        time::timeout(Duration::from_secs(timeout), async move {
+            // Attempt to read from stream ID. It's irrelevant whether the
+            // stream ID exists or not.
+            let _ = client
+                .read_stream("eventually-init-verification")
+                .read_through()
+                .await?;
+
+            Ok(())
+        })
+        .await
+        // The precise error type (`BuilderError::VerificationTimeout`) is
+        // invoked by the builder, so just use a filler here.
+        .map_err(|_| StoreError::StreamNotFound(String::new()))?
     }
 }
 
@@ -107,7 +126,7 @@ where
                     events
                         .into_iter()
                         .map(|event| {
-                            EventData::json("", event)
+                            EventData::json("some-type", event)
                                 .map_err(|err| StoreError::FailedEventSer(err))
                         })
                         .collect::<Result<Vec<EventData>>>()?,
@@ -143,6 +162,10 @@ where
                 .map(|read_res| {
                     let stream = match read_res {
                         ReadResult::Ok(s) => s,
+                        // The Rust client for EventStoreDB returns an error if
+                        // the stream ID does not exists, so just return an
+                        // empty stream. Events might be added later to it
+                        // (which therefore creates the stream ID).
                         ReadResult::StreamNotFound(_) => return Ok(empty_stream().boxed()),
                     };
 

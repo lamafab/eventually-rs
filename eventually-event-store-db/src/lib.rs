@@ -1,7 +1,7 @@
 //! EventStoreDB backend implementation for [`eventually` crate](https://crates.io/crates/eventually).
 
 // TODO: cast required?
-use eventstore::Client as EsClient;
+use eventstore::{Client as EsClient, EventData};
 use std::error::Error;
 
 mod store;
@@ -23,6 +23,9 @@ pub enum BuilderError {
     /// Error returned when attempting to create a gRPC connection to the EventStoreDB databse.
     #[error("failed to create gRPC client to the EventStoreDB database")]
     GRpcClient(#[source] Box<dyn Error>),
+    /// TODO
+    #[error("connection verification timed-out. The connection string to the EventStoreDB might be wrong")]
+    VerificationTimeout,
 }
 
 /// Builder type for ['EventStore'].
@@ -42,6 +45,12 @@ impl EventStoreBuilder {
             .await
             .map_err(|err| BuilderError::GRpcClient(err))?,
         })
+    }
+    /// TODO
+    pub async fn verify_connection(&self, timeout: u64) -> Result<()> {
+        EventStore::<(), ()>::verify_connection(&self.client, timeout)
+            .await
+            .map_err(|_| BuilderError::VerificationTimeout)
     }
     /// Builds the event store instance. This function can be called multiple times.
     pub fn build_store<Id, Event>(&self) -> EventStore<Id, Event> {
