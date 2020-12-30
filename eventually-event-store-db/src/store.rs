@@ -1,12 +1,12 @@
 use eventstore::prelude::{
     CurrentRevision, Error as EsError, EventData, ExpectedRevision, ExpectedVersion, ReadResult,
-    WrongExpectedVersion,
+    ResolvedEvent, WrongExpectedVersion,
 };
 use eventstore::Client as EsClient;
 use eventually::store::{AppendError, EventStream, Expected, Persisted, Select};
 // TODO: Alias `EventStream` as `StoreEventStream`
 use futures::future::BoxFuture;
-use futures::stream::StreamExt;
+use futures::stream::{Stream, StreamExt};
 use serde::{de::DeserializeOwned, ser::Serialize};
 use serde_json::error::Error as SerdeError;
 use std::fmt;
@@ -166,4 +166,41 @@ where
     fn remove(&mut self, _id: Self::SourceId) -> BoxFuture<Result<()>> {
         unimplemented!()
     }
+}
+
+impl<Id, Event> EventStore<Id, Event>
+where
+    Id: Send + Sync + Eq + Display + Clone,
+    Event: 'static + Sync + Send + Serialize + DeserializeOwned,
+{
+}
+
+fn process_stream<Id, Event>(
+    id: Id,
+    stream: Box<dyn Stream<Item = Result<ResolvedEvent>> + Send + Unpin>,
+) -> BoxFuture<'static, Result<EventStream<'static, EventStore<Id, Event>>>>
+where
+    Id: 'static + Send + Sync + Eq + Display + Clone,
+    Event: 'static + Sync + Send + Serialize + DeserializeOwned,
+{
+    Box::pin(async move {
+        Ok(stream
+            .map(move |resolved| {
+                // TODO: Clarify in what cases `event` might be `None`.
+                let event = resolved?.event.unwrap();
+
+                Ok(Persisted::from(
+                    id.clone(),
+                    serde_json::from_slice::<Event>(event.data.as_ref()).map_err(|err| {
+                        StoreError::FailedEventDes {
+                            version: event.revision as u32,
+                            serde_err: err,
+                        }
+                    })?,
+                )
+                .version(event.revision as u32)
+                .sequence_number(0))
+            })
+            .boxed())
+    })
 }
