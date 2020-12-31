@@ -9,8 +9,8 @@ use eventually_event_store_db::{
 };
 use futures::future::BoxFuture;
 use futures::stream::{Stream, StreamExt};
-use serde::Serialize;
 use serde::de::{Deserialize, DeserializeOwned, Deserializer};
+use serde::Serialize;
 use std::convert::TryFrom;
 use std::fmt;
 use std::future::Future;
