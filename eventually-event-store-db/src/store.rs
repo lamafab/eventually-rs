@@ -45,7 +45,7 @@ pub enum StoreError {
         #[from]
         SerdeError,
     ),
-    /// TODO
+    /// TODO: Track stream ID.
     #[error("failed to deserialize event (event version: {}): {}", .version, .serde_err)]
     FailedEventDes {
         /// TODO

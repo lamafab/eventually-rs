@@ -9,6 +9,8 @@ use eventually_event_store_db::{
 };
 use futures::future::BoxFuture;
 use futures::stream::{Stream, StreamExt};
+use serde::Serialize;
+use serde::de::{Deserialize, DeserializeOwned, Deserializer};
 use std::convert::TryFrom;
 use std::fmt;
 use std::future::Future;
@@ -51,6 +53,8 @@ impl Event {
 enum SourceId {
     Foo,
     Bar,
+    /// EventStoreDB has additional, default streams.
+    Unknown,
 }
 
 impl TryFrom<String> for SourceId {
@@ -60,7 +64,7 @@ impl TryFrom<String> for SourceId {
         match value.as_str() {
             "foo" => Ok(SourceId::Foo),
             "bar" => Ok(SourceId::Bar),
-            _ => Err(()),
+            _ => Ok(SourceId::Unknown),
         }
     }
 }
@@ -71,6 +75,7 @@ impl fmt::Display for SourceId {
             match self {
                 SourceId::Foo => "foo",
                 SourceId::Bar => "bar",
+                _ => unimplemented!(),
             }
         })
     }
@@ -78,23 +83,34 @@ impl fmt::Display for SourceId {
 
 /// Convenience implementation
 #[async_trait]
-trait StreamToVec {
-    async fn to_vec(self) -> Vec<Event>;
+trait StreamToVec<T> {
+    async fn to_vec(self) -> Vec<T>;
 }
 
 #[async_trait]
-impl<'a> StreamToVec
-    for BoxFuture<'a, Result<EventStream<'a, EventStoreDB<SourceId, Event>>, StoreError>>
+impl<'a, T: 'static + Send + Sync + Serialize + DeserializeOwned> StreamToVec<T>
+    for BoxFuture<'a, Result<EventStream<'a, EventStoreDB<SourceId, T>>, StoreError>>
 {
-    async fn to_vec(self) -> Vec<Event> {
+    async fn to_vec(self) -> Vec<T> {
         self.await
             .unwrap()
-            .collect::<Vec<Result<Persisted<SourceId, Event>, StoreError>>>()
+            .collect::<Vec<Result<Persisted<SourceId, T>, StoreError>>>()
             .await
             .into_iter()
             .map(|persisted| persisted.unwrap().take())
             .collect()
     }
+}
+
+#[derive(Serialize, Deserialize)]
+struct AnyValue(#[serde(deserialize_with = "handle_empty")] ());
+
+fn handle_empty<'de, D>(deserializer: D) -> Result<(), D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s = Vec::<u8>::deserialize(deserializer);
+    Ok(())
 }
 
 #[tokio::test]
@@ -127,6 +143,10 @@ async fn event_store_db_read_write() {
         .await
         .unwrap()
         .build_store();
+
+    // Start from scratch.
+    client.remove(SourceId::Foo).await.unwrap();
+    client.remove(SourceId::Bar).await.unwrap();
 
     // Write a single event.
     client
@@ -181,6 +201,19 @@ async fn event_store_db_read_write() {
     assert_eq!(events[1], Event::two());
     assert_eq!(events[2], Event::three());
     assert_eq!(events[3], Event::four());
+
+    // Read events from **all** streams.
+    {
+        // Create a temporary scope in order to use the `Option<serde_json::Value>` type
+        // instead of `Event`. EventStoreDB has additional, default streams.
+        let mut client = EventStoreBuilder::new("esdb://localhost:2113?tls=false")
+            .await
+            .unwrap()
+            .build_store::<SourceId, AnyValue>();
+
+        let events = client.stream_all(Select::All).to_vec().await;
+        assert!(events.len() >= 7);
+    }
 
     // Cleanup
     client.remove(SourceId::Foo).await.unwrap();
