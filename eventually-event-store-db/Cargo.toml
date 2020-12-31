@@ -25,3 +25,4 @@ eventstore = "0.9.9"
 
 [dev-dependencies]
 eventually-event-store-db = { path = ".", features = ["verify-connection"] }
+async-trait = "0.1.42"
