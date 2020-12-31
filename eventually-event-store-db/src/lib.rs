@@ -16,24 +16,6 @@ type Result<T> = std::result::Result<T, BuilderError>;
 // Re-exports
 pub use store::{EventStore, StoreError};
 
-/// TODO
-pub struct RecordedEvent(EsRecordedEvent);
-
-impl RecordedEvent {
-    fn from_json<T: DeserializeOwned>(&self) -> std::result::Result<T, SerdeError> {
-        serde_json::from_slice(self.as_bytes())
-    }
-    fn as_bytes(&self) -> &[u8] {
-        self.0.data.as_ref()
-    }
-}
-
-impl From<EsRecordedEvent> for RecordedEvent {
-    fn from(event: EsRecordedEvent) -> Self {
-        RecordedEvent(event)
-    }
-}
-
 /// Error type returned by ['EventStoreBuilder'].
 #[derive(Debug, thiserror::Error)]
 pub enum BuilderError {

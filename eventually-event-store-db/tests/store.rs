@@ -8,13 +8,11 @@ use eventually_event_store_db::{
     BuilderError, EventStore as EventStoreDB, EventStoreBuilder, StoreError,
 };
 use futures::future::BoxFuture;
-use futures::stream::{Stream, StreamExt};
-use serde::de::{Deserialize, DeserializeOwned, Deserializer};
+use futures::stream::StreamExt;
+use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::convert::TryFrom;
 use std::fmt;
-use std::future::Future;
-use std::pin::Pin;
 
 #[derive(Debug, Eq, PartialEq, Serialize, Deserialize)]
 struct Event {
@@ -102,20 +100,9 @@ impl<'a, T: 'static + Send + Sync + Serialize + DeserializeOwned> StreamToVec<T>
     }
 }
 
-#[derive(Serialize, Deserialize)]
-struct AnyValue(#[serde(deserialize_with = "handle_empty")] ());
-
-fn handle_empty<'de, D>(deserializer: D) -> Result<(), D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let s = Vec::<u8>::deserialize(deserializer);
-    Ok(())
-}
-
 #[tokio::test]
 async fn event_store_db_verify_connection_valid() {
-    let verify = EventStoreBuilder::new("esdb://localhost:2113?tls=false")
+    EventStoreBuilder::new("esdb://localhost:2113?tls=false")
         .await
         .unwrap()
         .verify_connection(3)
@@ -201,19 +188,6 @@ async fn event_store_db_read_write() {
     assert_eq!(events[1], Event::two());
     assert_eq!(events[2], Event::three());
     assert_eq!(events[3], Event::four());
-
-    // Read events from **all** streams.
-    {
-        // Create a temporary scope in order to use the `Option<serde_json::Value>` type
-        // instead of `Event`. EventStoreDB has additional, default streams.
-        let mut client = EventStoreBuilder::new("esdb://localhost:2113?tls=false")
-            .await
-            .unwrap()
-            .build_store::<SourceId, AnyValue>();
-
-        let events = client.stream_all(Select::All).to_vec().await;
-        assert!(events.len() >= 7);
-    }
 
     // Cleanup
     client.remove(SourceId::Foo).await.unwrap();
