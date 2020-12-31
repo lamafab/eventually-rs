@@ -1,9 +1,7 @@
 //! EventStoreDB backend implementation for [`eventually` crate](https://crates.io/crates/eventually).
 
 // TODO: cast required?
-use eventstore::{Client as EsClient, EventData, RecordedEvent as EsRecordedEvent};
-use serde::de::DeserializeOwned;
-use serde_json::Error as SerdeError;
+use eventstore::Client as EsClient;
 use std::error::Error;
 
 mod store;

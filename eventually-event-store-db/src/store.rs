@@ -218,7 +218,9 @@ where
     }
 }
 
-fn process_stream<Id, Event>(
+// TODO: Cleanup trait bounds (including in other implementations)
+// TODO: 'static avoidable?
+pub(crate) fn process_stream<Id, Event>(
     stream: Box<dyn Stream<Item = std::result::Result<ResolvedEvent, EsError>> + Send + Unpin>,
 ) -> Result<EventStream<'static, EventStore<Id, Event>>>
 where
