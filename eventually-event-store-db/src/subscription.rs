@@ -3,13 +3,13 @@ use eventually::subscription::{EventStream, Subscription, SubscriptionStream};
 use futures::future::BoxFuture;
 use std::marker::PhantomData;
 
-pub struct EventSubscriber<Id, Event> {
+pub struct EventSubscription<Id, Event> {
     client: eventstore::Client,
     _p1: PhantomData<Id>,
     _p2: PhantomData<Event>,
 }
 
-impl<Id, Event> Subscription for EventSubscriber<Id, Event>
+impl<Id, Event> Subscription for EventSubscription<Id, Event>
 where
     Id: Eq,
 {
