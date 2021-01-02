@@ -5,7 +5,7 @@ extern crate async_trait;
 
 use eventually::store::{EventStore, EventStream, Expected, Persisted, Select};
 use eventually_event_store_db::{
-    BuilderError, EventStore as EventStoreDB, EventStoreBuilder, StoreError,
+    BuilderError, EventStore as EventStoreDB, EventStoreBuilder, GenericEvent, StoreError,
 };
 use futures::future::BoxFuture;
 use futures::stream::StreamExt;
@@ -21,29 +21,33 @@ struct Event {
 }
 
 impl Event {
-    fn one() -> Self {
-        Event {
+    fn one() -> GenericEvent {
+        GenericEvent::serialize(Event {
             name: String::from("Event One"),
             data: 1,
-        }
+        })
+        .unwrap()
     }
-    fn two() -> Self {
-        Event {
+    fn two() -> GenericEvent {
+        GenericEvent::serialize(Event {
             name: String::from("Event Two"),
             data: 2,
-        }
+        })
+        .unwrap()
     }
-    fn three() -> Self {
-        Event {
+    fn three() -> GenericEvent {
+        GenericEvent::serialize(Event {
             name: String::from("Event Three"),
             data: 3,
-        }
+        })
+        .unwrap()
     }
-    fn four() -> Self {
-        Event {
+    fn four() -> GenericEvent {
+        GenericEvent::serialize(Event {
             name: String::from("Event Four"),
             data: 4,
-        }
+        })
+        .unwrap()
     }
 }
 
@@ -81,22 +85,20 @@ impl fmt::Display for SourceId {
 
 /// Convenience implementation
 #[async_trait]
-trait StreamToVec<T> {
-    async fn to_vec(self) -> Vec<T>;
+trait StreamToVec {
+    async fn to_vec(self) -> Vec<GenericEvent>;
 }
 
 #[async_trait]
-impl<'a, T: 'static + Send + Sync + Serialize + DeserializeOwned> StreamToVec<T>
-    for BoxFuture<'a, Result<EventStream<'a, EventStoreDB<SourceId, T>>, StoreError>>
+impl<'a> StreamToVec
+    for BoxFuture<'a, Result<EventStream<'a, EventStoreDB<SourceId>>, StoreError>>
 {
-    async fn to_vec(self) -> Vec<T> {
+    async fn to_vec(self) -> Vec<GenericEvent> {
         self.await
             .unwrap()
-            .collect::<Vec<Result<Persisted<SourceId, T>, StoreError>>>()
-            .await
-            .into_iter()
             .map(|persisted| persisted.unwrap().take())
             .collect()
+            .await
     }
 }
 

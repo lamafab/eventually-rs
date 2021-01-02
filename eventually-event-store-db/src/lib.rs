@@ -3,7 +3,8 @@
 // TODO: cast required?
 use bytes::Bytes;
 use eventstore::Client as EsClient;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use std::convert::TryFrom;
 use std::error::Error;
 
 mod store;
@@ -11,6 +12,7 @@ mod stream;
 mod subscriber;
 mod subscription;
 
+// TODO: Consider adjusting this
 type Result<T> = std::result::Result<T, BuilderError>;
 
 // Re-exports
@@ -21,6 +23,10 @@ pub use store::{EventStore, StoreError};
 pub struct GenericEvent(Bytes);
 
 impl GenericEvent {
+    /// TODO
+    pub fn serialize<T: Serialize>(val: T) -> std::result::Result<Self, serde_json::Error> {
+        Ok(GenericEvent(serde_json::to_vec(&val)?.into()))
+    }
     /// TODO
     pub fn as_json<'a, T: Deserialize<'a>>(&'a self) -> std::result::Result<T, serde_json::Error> {
         serde_json::from_slice(&self.0)
