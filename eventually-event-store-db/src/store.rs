@@ -1,3 +1,4 @@
+use super::GenericEvent;
 use eventstore::prelude::{
     Error as EsError, EventData, ExpectedVersion, Position, ReadResult, ResolvedEvent,
     WrongExpectedVersion,

@@ -30,6 +30,12 @@ impl GenericEvent {
     }
 }
 
+impl From<Vec<u8>> for GenericEvent {
+    fn from(val: Vec<u8>) -> Self {
+        GenericEvent(val.into())
+    }
+}
+
 /// Error type returned by ['EventStoreBuilder'].
 #[derive(Debug, thiserror::Error)]
 pub enum BuilderError {
