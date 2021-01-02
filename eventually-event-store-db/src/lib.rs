@@ -2,6 +2,8 @@
 
 // TODO: cast required?
 use eventstore::Client as EsClient;
+use bytes::Bytes;
+use serde::Deserialize;
 use std::error::Error;
 
 mod store;
@@ -13,6 +15,20 @@ type Result<T> = std::result::Result<T, BuilderError>;
 
 // Re-exports
 pub use store::{EventStore, StoreError};
+
+/// TODO
+pub struct GenericEvent(Bytes);
+
+impl GenericEvent {
+    /// TODO
+    pub fn as_json<'a, T: Deserialize<'a>>(&'a self) -> std::result::Result<T, serde_json::Error> {
+        serde_json::from_slice(&self.0)
+    }
+    /// TODO
+    pub fn as_bytes(&self) -> &Bytes {
+        &self.0
+    }
+}
 
 /// Error type returned by ['EventStoreBuilder'].
 #[derive(Debug, thiserror::Error)]
