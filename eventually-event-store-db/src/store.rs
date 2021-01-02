@@ -57,6 +57,9 @@ pub enum StoreError {
     /// TODO
     #[error("failed to convert stream ID to source id: {0}")]
     FailedStreamIdConv(String),
+    /// TODO
+    #[error("failed to process event from stream, receiver dropped")]
+    FailedToProcessEvent,
 }
 
 impl AppendError for StoreError {

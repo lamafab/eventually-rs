@@ -8,7 +8,7 @@ use futures::stream::StreamExt;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::convert::TryFrom;
-use std::fmt::{Debug, Display};
+use std::fmt::Display;
 use std::marker::PhantomData;
 
 pub struct EventSubscription<Id, Event> {
@@ -23,7 +23,6 @@ impl<Id, Event> Subscription for EventSubscription<Id, Event>
 where
     Id: 'static + Send + Sync + Eq + Display + TryFrom<String> + Clone,
     Event: 'static + Send + Sync + Serialize + DeserializeOwned,
-    <Id as TryFrom<String>>::Error: Debug,
 {
     type SourceId = Id;
     type Event = Event;
@@ -38,21 +37,26 @@ where
                 .execute()
                 .await
                 .map(|(mut read, _write)| async move {
-                    while let Some(resolved) = read.try_next_event().await.unwrap() {
+                    while let Some(resolved) = read.try_next_event().await? {
                         // TODO: Clarify in what cases `event` might be `None`.
                         let mut event = resolved.event.unwrap();
 
                         let stream_id = std::mem::take(&mut event.stream_id);
                         tx.start_send(Ok(Persisted::from(
-                            Id::try_from(stream_id).unwrap(),
-                            serde_json::from_slice::<Event>(event.data.as_ref()).unwrap(),
+                            Id::try_from(stream_id.clone())
+                                .map_err(|_| StoreError::FailedStreamIdConv(stream_id))?,
+                            serde_json::from_slice::<Event>(event.data.as_ref())
+                                .map_err(|err| StoreError::FailedEventSer(err))?,
                         )
                         .version(0)
                         .sequence_number(0)))
-                            .unwrap();
+                            .map_err(|_| StoreError::FailedToProcessEvent)?
                     }
+
+                    #[allow(unused_qualifications)]
+                    Result::<(), StoreError>::Ok(())
                 })?
-                .await;
+                .await?;
 
             Ok(rx.boxed())
         };
