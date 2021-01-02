@@ -6,9 +6,7 @@ use futures::channel::mpsc;
 use futures::future::BoxFuture;
 use futures::stream::StreamExt;
 use serde::de::DeserializeOwned;
-use serde::Serialize;
 use std::convert::TryFrom;
-use std::fmt::Display;
 use std::marker::PhantomData;
 
 pub struct EventSubscription<Id, Event> {
@@ -21,8 +19,8 @@ pub struct EventSubscription<Id, Event> {
 
 impl<Id, Event> Subscription for EventSubscription<Id, Event>
 where
-    Id: 'static + Send + Sync + Eq + Display + TryFrom<String> + Clone,
-    Event: 'static + Send + Sync + Serialize + DeserializeOwned,
+    Id: 'static + Send + Sync + Eq + TryFrom<String> + Clone,
+    Event: 'static + Send + Sync + DeserializeOwned,
 {
     type SourceId = Id;
     type Event = Event;
