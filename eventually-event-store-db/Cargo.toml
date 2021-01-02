@@ -18,7 +18,7 @@ verify-connection = ["tokio"]
 tokio = { version = "0.2", features = ["sync", "macros", "time"], optional = true }
 serde = { version = "1.0.118", features = ["derive"] }
 serde_json = "1.0.61"
-bytes = "1.0.0"
+bytes = "0.5.6"
 eventually = { version = "0.4.0", path = "../eventually", features = ["serde"] }
 thiserror = "1.0.21"
 futures = "0.3.8" 

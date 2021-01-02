@@ -73,18 +73,16 @@ impl AppendError for StoreError {
 }
 
 /// TODO
-pub struct EventStore<Id, Event> {
+pub struct EventStore<Id> {
     client: EsClient,
     _p1: PhantomData<Id>,
-    _p2: PhantomData<Event>,
 }
 
-impl<Id, Event> EventStore<Id, Event> {
-    pub(super) fn new(client: EsClient) -> EventStore<Id, Event> {
+impl<Id> EventStore<Id> {
+    pub(super) fn new(client: EsClient) -> EventStore<Id> {
         EventStore {
             client: client,
             _p1: PhantomData,
-            _p2: PhantomData,
         }
     }
     #[cfg(feature = "verify-connection")]
@@ -106,13 +104,12 @@ impl<Id, Event> EventStore<Id, Event> {
     }
 }
 
-impl<Id, Event> eventually::EventStore for EventStore<Id, Event>
+impl<Id> eventually::EventStore for EventStore<Id>
 where
     Id: 'static + Send + Sync + Eq + Display + Clone + TryFrom<String>,
-    Event: 'static + Sync + Send + Serialize + DeserializeOwned,
 {
     type SourceId = Id;
-    type Event = Event;
+    type Event = GenericEvent;
     type Error = StoreError;
 
     fn append(
@@ -134,11 +131,8 @@ where
                 .send_iter(
                     events
                         .into_iter()
-                        .map(|event| {
-                            EventData::json("some-type", event)
-                                .map_err(|err| StoreError::FailedEventSer(err))
-                        })
-                        .collect::<Result<Vec<EventData>>>()?,
+                        .map(|event| EventData::binary("some-type", event.as_bytes().clone()))
+                        .collect::<Vec<EventData>>(),
                 )
                 .await??
                 .next_expected_version;
@@ -224,12 +218,11 @@ where
 
 // TODO: Cleanup trait bounds (including in other implementations)
 // TODO: 'static avoidable?
-pub(crate) fn process_stream<Id, Event>(
+pub(crate) fn process_stream<Id>(
     stream: Box<dyn Stream<Item = std::result::Result<ResolvedEvent, EsError>> + Send + Unpin>,
-) -> Result<EventStream<'static, EventStore<Id, Event>>>
+) -> Result<EventStream<'static, EventStore<Id>>>
 where
     Id: 'static + Send + Sync + Eq + Display + Clone + TryFrom<String>,
-    Event: 'static + Sync + Send + Serialize + DeserializeOwned,
 {
     Ok(stream
         .map(move |resolved| {
@@ -240,12 +233,7 @@ where
             Ok(Persisted::from(
                 Id::try_from(stream_id.clone())
                     .map_err(|_| StoreError::FailedStreamIdConv(stream_id))?,
-                serde_json::from_slice::<Event>(event.data.as_ref()).map_err(|err| {
-                    StoreError::FailedEventDes {
-                        version: event.revision as u32,
-                        serde_err: err,
-                    }
-                })?,
+                GenericEvent::from(event.data),
             )
             .version(event.revision as u32)
             .sequence_number(0))
