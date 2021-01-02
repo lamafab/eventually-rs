@@ -36,7 +36,7 @@ where
                 .connect_persistent_subscription(self.stream_id, self.subscription_name)
                 .execute()
                 .await
-                .map(|(mut read, _write)| async move {
+                .map(|(mut read, mut write)| async move {
                     while let Some(resolved) = read.try_next_event().await? {
                         // TODO: Clarify in what cases `event` might be `None`.
                         let mut event = resolved.event.unwrap();
@@ -48,9 +48,11 @@ where
                             serde_json::from_slice::<Event>(event.data.as_ref())
                                 .map_err(|err| StoreError::FailedEventSer(err))?,
                         )
-                        .version(0)
+                        .version(event.revision as u32)
                         .sequence_number(0)))
-                            .map_err(|_| StoreError::FailedToProcessEvent)?
+                            .map_err(|_| StoreError::FailedToProcessEvent)?;
+
+                        write.ack(vec![event.id]).await.unwrap();
                     }
 
                     #[allow(unused_qualifications)]
