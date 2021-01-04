@@ -16,9 +16,10 @@ type Result<T> = std::result::Result<T, BuilderError>;
 
 // Re-exports
 pub use store::{EventStore, StoreError};
+pub use subscriber::EventSubscriber;
 
 /// TODO
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct GenericEvent(Bytes);
 
 impl GenericEvent {
@@ -63,6 +64,7 @@ pub enum BuilderError {
 }
 
 /// Builder type for ['EventStore'].
+#[derive(Clone)]
 pub struct EventStoreBuilder {
     client: EsClient,
 }
@@ -89,6 +91,10 @@ impl EventStoreBuilder {
     /// Builds the event store instance. This function can be called multiple times.
     pub fn build_store<Id>(&self) -> EventStore<Id> {
         EventStore::new(self.client.clone())
+    }
+    /// TODO
+    pub fn build_subscriber<Id>(&self) -> EventSubscriber<Id> {
+        EventSubscriber::new(self.client.clone())
     }
 }
 

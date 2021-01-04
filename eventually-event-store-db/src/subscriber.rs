@@ -14,6 +14,15 @@ pub struct EventSubscriber<Id> {
     _p1: PhantomData<Id>,
 }
 
+impl<Id> EventSubscriber<Id> {
+    pub(super) fn new(client: eventstore::Client) -> Self {
+        EventSubscriber {
+            client: client,
+            _p1: PhantomData,
+        }
+    }
+}
+
 impl<Id> eventually::EventSubscriber for EventSubscriber<Id>
 where
     Id: 'static + Send + Sync + Eq + Display + TryFrom<String> + Clone,

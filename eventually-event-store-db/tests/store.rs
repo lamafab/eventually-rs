@@ -14,7 +14,7 @@ use serde::Serialize;
 use std::convert::TryFrom;
 use std::fmt;
 
-#[derive(Debug, Eq, PartialEq, Serialize)]
+#[derive(Debug, Eq, PartialEq, Serialize, Deserialize)]
 struct Event {
     name: String,
     data: u32,

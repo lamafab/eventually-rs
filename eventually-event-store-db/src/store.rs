@@ -85,7 +85,6 @@ impl<Id> EventStore<Id> {
             _p1: PhantomData,
         }
     }
-    #[cfg(feature = "verify-connection")]
     pub(super) async fn verify_connection(client: &EsClient, timeout: u64) -> Result<()> {
         time::timeout(Duration::from_secs(timeout), async move {
             // Attempt to read from stream ID. It's irrelevant whether the
