@@ -8,7 +8,6 @@ use std::convert::TryFrom;
 use std::error::Error;
 
 mod store;
-mod stream;
 mod subscriber;
 mod subscription;
 
