@@ -3,7 +3,8 @@ extern crate serde;
 #[macro_use]
 extern crate async_trait;
 
-use eventually::store::{EventStore, EventStream, Expected, Select};
+use eventually::store::{EventStore, EventStream, Expected, Persisted, Select};
+use eventually::versioning::Versioned;
 use eventually_event_store_db::{
     BuilderError, EventStore as EventStoreDB, EventStoreBuilder, GenericEvent, StoreError,
 };
@@ -183,7 +184,6 @@ async fn event_store_db_read_write() {
 
     // Verify: Read events from "foo" stream ID (must not change).
     let foo_events = client.stream(SourceId::Foo, Select::All).to_vec().await;
-
     assert_eq!(foo_events.len(), 4);
     assert_eq!(foo_events[0], Event::one());
     assert_eq!(foo_events[1], Event::two());
@@ -197,6 +197,57 @@ async fn event_store_db_read_write() {
     assert!(all_events.contains(&Event::two()));
     assert!(all_events.contains(&Event::three()));
     assert!(all_events.contains(&Event::four()));
+
+    // Stream from a specific version.
+    let persisted_foo_events = client
+        .stream(SourceId::Foo, Select::All)
+        .await
+        .unwrap()
+        .map(|persisted| persisted.unwrap())
+        .collect::<Vec<Persisted<SourceId, GenericEvent>>>()
+        .await;
+
+    let at = persisted_foo_events[2].version();
+
+    let foo_events = client
+        .stream(SourceId::Foo, Select::From(at))
+        .to_vec()
+        .await;
+    assert_eq!(foo_events.len(), 2);
+    assert_eq!(foo_events[0], Event::three());
+    assert_eq!(foo_events[1], Event::four());
+
+    // Append from a specific version.
+    let at = persisted_foo_events[3].version();
+
+    // Version does not exist
+    let res = client
+        .append(
+            SourceId::Foo,
+            Expected::Exact(at + 1),
+            vec![Event::two(), Event::two()],
+        )
+        .await;
+    assert!(res.is_err());
+
+    // Version **does** not exist
+    client
+        .append(
+            SourceId::Foo,
+            Expected::Exact(at),
+            vec![Event::two(), Event::two()],
+        )
+        .await
+        .unwrap();
+
+    let foo_events = client.stream(SourceId::Foo, Select::All).to_vec().await;
+    assert_eq!(foo_events.len(), 6);
+    assert_eq!(foo_events[0], Event::one());
+    assert_eq!(foo_events[1], Event::two());
+    assert_eq!(foo_events[2], Event::three());
+    assert_eq!(foo_events[3], Event::four());
+    assert_eq!(foo_events[4], Event::two());
+    assert_eq!(foo_events[5], Event::two());
 
     // Cleanup
     client.remove(SourceId::Foo).await.unwrap();
