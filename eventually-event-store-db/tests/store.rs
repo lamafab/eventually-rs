@@ -193,6 +193,10 @@ async fn event_store_db_read_write() {
     // Read **all** events.
     let all_events = client.stream_all(Select::All).to_vec().await;
     assert!(all_events.len() >= foo_events.len() + bar_events.len());
+    assert!(all_events.contains(&Event::one()));
+    assert!(all_events.contains(&Event::two()));
+    assert!(all_events.contains(&Event::three()));
+    assert!(all_events.contains(&Event::four()));
 
     // Cleanup
     client.remove(SourceId::Foo).await.unwrap();
