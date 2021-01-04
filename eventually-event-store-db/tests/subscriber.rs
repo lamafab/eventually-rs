@@ -1,18 +1,13 @@
 mod common;
 
 use common::{Event, SourceId};
-use eventually::store::{EventStore, EventStream, Expected, Persisted, Select};
-use eventually::versioning::Versioned;
+use eventually::store::{EventStore, Expected};
 use eventually::EventSubscriber;
 use eventually_event_store_db::{
-    BuilderError, EventStore as EventStoreDB, EventStoreBuilder, GenericEvent, StoreError,
+    EventStoreBuilder, GenericEvent,
 };
-use futures::future::BoxFuture;
 use futures::stream::StreamExt;
-use serde::Serialize;
 use std::collections::HashSet;
-use std::time::Duration;
-use std::{fmt, hash::Hash};
 
 #[tokio::test]
 async fn event_store_db_subscribe_all() {

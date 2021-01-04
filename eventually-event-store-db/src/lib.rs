@@ -4,7 +4,6 @@
 use bytes::Bytes;
 use eventstore::Client as EsClient;
 use serde::{Deserialize, Serialize};
-use std::convert::TryFrom;
 use std::error::Error;
 
 mod store;

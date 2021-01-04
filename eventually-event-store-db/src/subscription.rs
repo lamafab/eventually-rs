@@ -6,7 +6,6 @@ use eventually::subscription::{Subscription, SubscriptionStream};
 use futures::channel::mpsc;
 use futures::future::BoxFuture;
 use futures::stream::StreamExt;
-use serde::de::DeserializeOwned;
 use std::convert::TryFrom;
 use std::marker::PhantomData;
 

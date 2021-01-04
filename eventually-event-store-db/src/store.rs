@@ -8,7 +8,6 @@ use eventually::store::{AppendError, EventStream, Expected, Persisted, Select};
 // TODO: Alias `EventStream` as `StoreEventStream`
 use futures::future::BoxFuture;
 use futures::stream::{empty as empty_stream, Stream, StreamExt};
-use serde::{de::DeserializeOwned, ser::Serialize};
 use serde_json::error::Error as SerdeError;
 use std::convert::TryFrom;
 use std::fmt::Display;

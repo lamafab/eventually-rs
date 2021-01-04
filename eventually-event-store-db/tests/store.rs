@@ -1,16 +1,12 @@
 mod common;
 
 use common::{Event, SourceId, StreamToVec};
-use eventually::store::{EventStore, EventStream, Expected, Persisted, Select};
+use eventually::store::{EventStore, Expected, Persisted, Select};
 use eventually::versioning::Versioned;
 use eventually_event_store_db::{
-    BuilderError, EventStore as EventStoreDB, EventStoreBuilder, GenericEvent, StoreError,
+    BuilderError, EventStoreBuilder, GenericEvent,
 };
-use futures::future::BoxFuture;
 use futures::stream::StreamExt;
-use serde::Serialize;
-use std::convert::TryFrom;
-use std::fmt;
 
 #[tokio::test]
 async fn event_store_db_verify_connection_valid() {

@@ -2,8 +2,6 @@ use super::store::{process_stream, StoreError};
 use super::GenericEvent;
 use eventually::subscription::EventStream;
 use futures::future::BoxFuture;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
 use std::convert::TryFrom;
 use std::fmt::Display;
 use std::marker::PhantomData;

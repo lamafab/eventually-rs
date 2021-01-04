@@ -1,7 +1,6 @@
-use eventually::store::{EventStore, EventStream, Expected, Persisted, Select};
-use eventually::versioning::Versioned;
+use eventually::store::EventStream;
 use eventually_event_store_db::{
-    BuilderError, EventStore as EventStoreDB, EventStoreBuilder, GenericEvent, StoreError,
+    EventStore as EventStoreDB, GenericEvent, StoreError,
 };
 use futures::future::BoxFuture;
 use futures::stream::StreamExt;
