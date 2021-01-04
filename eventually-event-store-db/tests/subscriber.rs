@@ -20,7 +20,9 @@ async fn event_store_db_subscribe_all() {
         .await
         .unwrap();
 
+    let mut client = builder.build_store::<SourceId>();
     let subscriber = builder.clone().build_subscriber::<SourceId>();
+
     let handle = tokio::spawn(async move {
         // Expected events that should be picked up.
         let mut expected: HashSet<GenericEvent> =
@@ -32,6 +34,7 @@ async fn event_store_db_subscribe_all() {
         let mut stream = subscriber.subscribe_all().await.unwrap();
         while let Some(persisted) = stream.next().await {
             let raw_event = persisted.unwrap().take();
+
             expected.remove(&raw_event);
 
             if expected.is_empty() {
@@ -42,26 +45,19 @@ async fn event_store_db_subscribe_all() {
         assert!(expected.is_empty());
     });
 
-    let mut client = builder.build_store::<SourceId>();
-
     // Append the expected events.
     client
-        .append(SourceId::Foo, Expected::Any, vec![Event::one()])
-        .await
-        .unwrap();
-
-    client
         .append(
-            SourceId::Foo,
+            SourceId::Baz,
             Expected::Any,
-            vec![Event::two(), Event::three()],
+            vec![Event::one(), Event::two()],
         )
         .await
         .unwrap();
 
     client
         .append(
-            SourceId::Foo,
+            SourceId::Bat,
             Expected::Any,
             vec![Event::three(), Event::four()],
         )

@@ -1,8 +1,6 @@
-#[macro_use]
-extern crate serde;
-#[macro_use]
-extern crate async_trait;
+mod common;
 
+use common::{Event, SourceId, StreamToVec};
 use eventually::store::{EventStore, EventStream, Expected, Persisted, Select};
 use eventually::versioning::Versioned;
 use eventually_event_store_db::{
@@ -13,94 +11,6 @@ use futures::stream::StreamExt;
 use serde::Serialize;
 use std::convert::TryFrom;
 use std::fmt;
-
-#[derive(Debug, Eq, PartialEq, Serialize, Deserialize)]
-struct Event {
-    name: String,
-    data: u32,
-}
-
-impl Event {
-    fn one() -> GenericEvent {
-        GenericEvent::serialize(Event {
-            name: String::from("Event One"),
-            data: 1,
-        })
-        .unwrap()
-    }
-    fn two() -> GenericEvent {
-        GenericEvent::serialize(Event {
-            name: String::from("Event Two"),
-            data: 2,
-        })
-        .unwrap()
-    }
-    fn three() -> GenericEvent {
-        GenericEvent::serialize(Event {
-            name: String::from("Event Three"),
-            data: 3,
-        })
-        .unwrap()
-    }
-    fn four() -> GenericEvent {
-        GenericEvent::serialize(Event {
-            name: String::from("Event Four"),
-            data: 4,
-        })
-        .unwrap()
-    }
-}
-
-#[derive(Clone, Eq, PartialEq)]
-enum SourceId {
-    Foo,
-    Bar,
-    /// EventStoreDB has additional, default streams.
-    Unknown,
-}
-
-impl TryFrom<String> for SourceId {
-    type Error = ();
-
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        match value.as_str() {
-            "foo" => Ok(SourceId::Foo),
-            "bar" => Ok(SourceId::Bar),
-            _ => Ok(SourceId::Unknown),
-        }
-    }
-}
-
-impl fmt::Display for SourceId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", {
-            match self {
-                SourceId::Foo => "foo",
-                SourceId::Bar => "bar",
-                _ => unimplemented!(),
-            }
-        })
-    }
-}
-
-/// Convenience implementation
-#[async_trait]
-trait StreamToVec {
-    async fn to_vec(self) -> Vec<GenericEvent>;
-}
-
-#[async_trait]
-impl<'a> StreamToVec
-    for BoxFuture<'a, Result<EventStream<'a, EventStoreDB<SourceId>>, StoreError>>
-{
-    async fn to_vec(self) -> Vec<GenericEvent> {
-        self.await
-            .unwrap()
-            .map(|persisted| persisted.unwrap().take())
-            .collect()
-            .await
-    }
-}
 
 #[tokio::test]
 async fn event_store_db_verify_connection_valid() {
