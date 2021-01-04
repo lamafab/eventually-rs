@@ -1,4 +1,5 @@
 use super::store::StoreError;
+use super::GenericEvent;
 use eventstore::PersistentSubscriptionSettings;
 use eventually::store::Persisted;
 use eventually::subscription::{Subscription, SubscriptionStream};
@@ -6,26 +7,22 @@ use futures::channel::mpsc;
 use futures::future::BoxFuture;
 use futures::stream::StreamExt;
 use serde::de::DeserializeOwned;
-use serde::Serialize;
 use std::convert::TryFrom;
-use std::fmt::Display;
 use std::marker::PhantomData;
 
-pub struct EventSubscription<Id, Event> {
+pub struct EventSubscription<Id> {
     client: eventstore::Client,
     stream_id: &'static str,
     subscription_name: &'static str,
     _p1: PhantomData<Id>,
-    _p2: PhantomData<Event>,
 }
 
-impl<Id, Event> Subscription for EventSubscription<Id, Event>
+impl<Id> Subscription for EventSubscription<Id>
 where
-    Id: 'static + Send + Sync + Eq + Display + TryFrom<String> + Clone,
-    Event: 'static + Send + Sync + Serialize + DeserializeOwned,
+    Id: 'static + Send + Sync + Eq + TryFrom<String> + Clone,
 {
     type SourceId = Id;
-    type Event = Event;
+    type Event = GenericEvent;
     type Error = StoreError;
 
     fn resume(&self) -> BoxFuture<Result<SubscriptionStream<Self>, Self::Error>> {
@@ -45,8 +42,7 @@ where
                         tx.start_send(Ok(Persisted::from(
                             Id::try_from(stream_id.clone())
                                 .map_err(|_| StoreError::FailedStreamIdConv(stream_id))?,
-                            serde_json::from_slice::<Event>(event.data.as_ref())
-                                .map_err(|err| StoreError::FailedEventSer(err))?,
+                            GenericEvent::from(event.data),
                         )
                         .version(event.revision as u32)
                         .sequence_number(0)))

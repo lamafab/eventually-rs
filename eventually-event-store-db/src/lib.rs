@@ -1,7 +1,10 @@
 //! EventStoreDB backend implementation for [`eventually` crate](https://crates.io/crates/eventually).
 
 // TODO: cast required?
+use bytes::Bytes;
 use eventstore::Client as EsClient;
+use serde::{Deserialize, Serialize};
+use std::convert::TryFrom;
 use std::error::Error;
 
 mod store;
@@ -9,10 +12,42 @@ mod stream;
 mod subscriber;
 mod subscription;
 
+// TODO: Consider adjusting this
 type Result<T> = std::result::Result<T, BuilderError>;
 
 // Re-exports
 pub use store::{EventStore, StoreError};
+
+/// TODO
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct GenericEvent(Bytes);
+
+impl GenericEvent {
+    /// TODO
+    pub fn serialize<T: Serialize>(val: T) -> std::result::Result<Self, serde_json::Error> {
+        Ok(GenericEvent(serde_json::to_vec(&val)?.into()))
+    }
+    /// TODO
+    pub fn as_json<'a, T: Deserialize<'a>>(&'a self) -> std::result::Result<T, serde_json::Error> {
+        serde_json::from_slice(&self.0)
+    }
+    /// TODO
+    pub fn as_bytes(&self) -> &Bytes {
+        &self.0
+    }
+}
+
+impl From<Vec<u8>> for GenericEvent {
+    fn from(val: Vec<u8>) -> Self {
+        GenericEvent(val.into())
+    }
+}
+
+impl From<Bytes> for GenericEvent {
+    fn from(val: Bytes) -> Self {
+        GenericEvent(val)
+    }
+}
 
 /// Error type returned by ['EventStoreBuilder'].
 #[derive(Debug, thiserror::Error)]
@@ -48,12 +83,12 @@ impl EventStoreBuilder {
     }
     /// TODO
     pub async fn verify_connection(&self, timeout: u64) -> Result<()> {
-        EventStore::<(), ()>::verify_connection(&self.client, timeout)
+        EventStore::<()>::verify_connection(&self.client, timeout)
             .await
             .map_err(|_| BuilderError::VerificationTimeout)
     }
     /// Builds the event store instance. This function can be called multiple times.
-    pub fn build_store<Id, Event>(&self) -> EventStore<Id, Event> {
+    pub fn build_store<Id>(&self) -> EventStore<Id> {
         EventStore::new(self.client.clone())
     }
 }

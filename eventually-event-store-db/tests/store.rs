@@ -3,47 +3,50 @@ extern crate serde;
 #[macro_use]
 extern crate async_trait;
 
-use eventually::store::{EventStore, EventStream, Expected, Persisted, Select};
+use eventually::store::{EventStore, EventStream, Expected, Select};
 use eventually_event_store_db::{
-    BuilderError, EventStore as EventStoreDB, EventStoreBuilder, StoreError,
+    BuilderError, EventStore as EventStoreDB, EventStoreBuilder, GenericEvent, StoreError,
 };
 use futures::future::BoxFuture;
 use futures::stream::StreamExt;
-use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::convert::TryFrom;
 use std::fmt;
 
-#[derive(Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Serialize)]
 struct Event {
     name: String,
     data: u32,
 }
 
 impl Event {
-    fn one() -> Self {
-        Event {
+    fn one() -> GenericEvent {
+        GenericEvent::serialize(Event {
             name: String::from("Event One"),
             data: 1,
-        }
+        })
+        .unwrap()
     }
-    fn two() -> Self {
-        Event {
+    fn two() -> GenericEvent {
+        GenericEvent::serialize(Event {
             name: String::from("Event Two"),
             data: 2,
-        }
+        })
+        .unwrap()
     }
-    fn three() -> Self {
-        Event {
+    fn three() -> GenericEvent {
+        GenericEvent::serialize(Event {
             name: String::from("Event Three"),
             data: 3,
-        }
+        })
+        .unwrap()
     }
-    fn four() -> Self {
-        Event {
+    fn four() -> GenericEvent {
+        GenericEvent::serialize(Event {
             name: String::from("Event Four"),
             data: 4,
-        }
+        })
+        .unwrap()
     }
 }
 
@@ -81,22 +84,20 @@ impl fmt::Display for SourceId {
 
 /// Convenience implementation
 #[async_trait]
-trait StreamToVec<T> {
-    async fn to_vec(self) -> Vec<T>;
+trait StreamToVec {
+    async fn to_vec(self) -> Vec<GenericEvent>;
 }
 
 #[async_trait]
-impl<'a, T: 'static + Send + Sync + Serialize + DeserializeOwned> StreamToVec<T>
-    for BoxFuture<'a, Result<EventStream<'a, EventStoreDB<SourceId, T>>, StoreError>>
+impl<'a> StreamToVec
+    for BoxFuture<'a, Result<EventStream<'a, EventStoreDB<SourceId>>, StoreError>>
 {
-    async fn to_vec(self) -> Vec<T> {
+    async fn to_vec(self) -> Vec<GenericEvent> {
         self.await
             .unwrap()
-            .collect::<Vec<Result<Persisted<SourceId, T>, StoreError>>>()
-            .await
-            .into_iter()
             .map(|persisted| persisted.unwrap().take())
             .collect()
+            .await
     }
 }
 
@@ -152,16 +153,16 @@ async fn event_store_db_read_write() {
         .unwrap();
 
     // Read events from stream.
-    let events = client.stream(SourceId::Foo, Select::All).to_vec().await;
-    assert_eq!(events.len(), 4);
-    assert_eq!(events[0], Event::one());
-    assert_eq!(events[1], Event::two());
-    assert_eq!(events[2], Event::three());
-    assert_eq!(events[3], Event::four());
+    let foo_events = client.stream(SourceId::Foo, Select::All).to_vec().await;
+    assert_eq!(foo_events.len(), 4);
+    assert_eq!(foo_events[0], Event::one());
+    assert_eq!(foo_events[1], Event::two());
+    assert_eq!(foo_events[2], Event::three());
+    assert_eq!(foo_events[3], Event::four());
 
     // Read events from empty "bar" stream ID.
-    let events = client.stream(SourceId::Bar, Select::All).to_vec().await;
-    assert!(events.is_empty());
+    let bar_events = client.stream(SourceId::Bar, Select::All).to_vec().await;
+    assert!(bar_events.is_empty());
 
     // Write multiple events to empty "bar" stream ID.
     client
@@ -174,29 +175,37 @@ async fn event_store_db_read_write() {
         .unwrap();
 
     // Read events from empty "bar" stream ID.
-    let events = client.stream(SourceId::Bar, Select::All).to_vec().await;
-    assert_eq!(events.len(), 3);
-    assert_eq!(events[0], Event::four());
-    assert_eq!(events[1], Event::three());
-    assert_eq!(events[2], Event::three());
+    let bar_events = client.stream(SourceId::Bar, Select::All).to_vec().await;
+    assert_eq!(bar_events.len(), 3);
+    assert_eq!(bar_events[0], Event::four());
+    assert_eq!(bar_events[1], Event::three());
+    assert_eq!(bar_events[2], Event::three());
 
     // Verify: Read events from "foo" stream ID (must not change).
-    let events = client.stream(SourceId::Foo, Select::All).to_vec().await;
+    let foo_events = client.stream(SourceId::Foo, Select::All).to_vec().await;
 
-    assert_eq!(events.len(), 4);
-    assert_eq!(events[0], Event::one());
-    assert_eq!(events[1], Event::two());
-    assert_eq!(events[2], Event::three());
-    assert_eq!(events[3], Event::four());
+    assert_eq!(foo_events.len(), 4);
+    assert_eq!(foo_events[0], Event::one());
+    assert_eq!(foo_events[1], Event::two());
+    assert_eq!(foo_events[2], Event::three());
+    assert_eq!(foo_events[3], Event::four());
+
+    // Read **all** events.
+    let all_events = client.stream_all(Select::All).to_vec().await;
+    assert!(all_events.len() >= foo_events.len() + bar_events.len());
+    assert!(all_events.contains(&Event::one()));
+    assert!(all_events.contains(&Event::two()));
+    assert!(all_events.contains(&Event::three()));
+    assert!(all_events.contains(&Event::four()));
 
     // Cleanup
     client.remove(SourceId::Foo).await.unwrap();
     client.remove(SourceId::Bar).await.unwrap();
 
     // Verify cleanup
-    let events = client.stream(SourceId::Foo, Select::All).to_vec().await;
-    assert!(events.is_empty());
+    let foo_events = client.stream(SourceId::Foo, Select::All).to_vec().await;
+    assert!(foo_events.is_empty());
 
-    let events = client.stream(SourceId::Bar, Select::All).to_vec().await;
-    assert!(events.is_empty());
+    let bar_events = client.stream(SourceId::Bar, Select::All).to_vec().await;
+    assert!(bar_events.is_empty());
 }
