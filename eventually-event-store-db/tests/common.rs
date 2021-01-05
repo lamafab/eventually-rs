@@ -48,7 +48,8 @@ pub enum SourceId {
     Foo,
     Bar,
     Baz,
-    Bat,
+    Fum,
+    Grunt,
     /// EventStoreDB has additional, default streams.
     Unknown,
 }
@@ -61,7 +62,8 @@ impl TryFrom<String> for SourceId {
             "foo" => Ok(SourceId::Foo),
             "bar" => Ok(SourceId::Bar),
             "baz" => Ok(SourceId::Baz),
-            "bat" => Ok(SourceId::Bat),
+            "fum" => Ok(SourceId::Fum),
+            "grunt" => Ok(SourceId::Grunt),
             _ => Ok(SourceId::Unknown),
         }
     }
@@ -74,7 +76,8 @@ impl fmt::Display for SourceId {
                 SourceId::Foo => "foo",
                 SourceId::Bar => "bar",
                 SourceId::Baz => "baz",
-                SourceId::Bat => "bat",
+                SourceId::Fum => "fum",
+                SourceId::Grunt => "grunt",
                 _ => unimplemented!(),
             }
         })

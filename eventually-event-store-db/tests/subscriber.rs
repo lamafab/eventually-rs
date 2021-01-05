@@ -16,6 +16,10 @@ async fn event_store_db_subscribe_all() {
     let mut client = builder.build_store::<SourceId>();
     let subscriber = builder.clone().build_subscriber::<SourceId>();
 
+    // Start from scratch.
+    client.remove(SourceId::Baz).await.unwrap();
+    client.remove(SourceId::Fum).await.unwrap();
+
     let handle = tokio::spawn(async move {
         // Expected events that should be picked up.
         let mut expected: HashSet<GenericEvent> =
@@ -50,7 +54,7 @@ async fn event_store_db_subscribe_all() {
 
     client
         .append(
-            SourceId::Bat,
+            SourceId::Fum,
             Expected::Any,
             vec![Event::three(), Event::four()],
         )
@@ -58,4 +62,8 @@ async fn event_store_db_subscribe_all() {
         .unwrap();
 
     handle.await.unwrap();
+
+    // Cleanup.
+    client.remove(SourceId::Baz).await.unwrap();
+    client.remove(SourceId::Fum).await.unwrap();
 }
