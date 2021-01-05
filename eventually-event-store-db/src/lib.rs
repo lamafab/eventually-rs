@@ -16,6 +16,7 @@ type Result<T> = std::result::Result<T, BuilderError>;
 // Re-exports
 pub use store::{EventStore, StoreError};
 pub use subscriber::EventSubscriber;
+pub use subscription::EventSubscription;
 
 /// TODO
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
@@ -94,6 +95,14 @@ impl EventStoreBuilder {
     /// TODO
     pub fn build_subscriber<Id>(&self) -> EventSubscriber<Id> {
         EventSubscriber::new(self.client.clone())
+    }
+    /// TODO
+    pub fn build_persistant_subscription<Id>(
+        &self,
+        source_id: Id,
+        subscription_name: &'static str,
+    ) -> EventSubscription<Id> {
+        EventSubscription::new(self.client.clone(), source_id, subscription_name)
     }
 }
 

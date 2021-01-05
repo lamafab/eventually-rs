@@ -1,7 +1,5 @@
 use eventually::store::EventStream;
-use eventually_event_store_db::{
-    EventStore as EventStoreDB, GenericEvent, StoreError,
-};
+use eventually_event_store_db::{EventStore as EventStoreDB, GenericEvent, StoreError};
 use futures::future::BoxFuture;
 use futures::stream::StreamExt;
 use serde::Serialize;

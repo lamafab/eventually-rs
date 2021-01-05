@@ -3,9 +3,7 @@ mod common;
 use common::{Event, SourceId, StreamToVec};
 use eventually::store::{EventStore, Expected, Persisted, Select};
 use eventually::versioning::Versioned;
-use eventually_event_store_db::{
-    BuilderError, EventStoreBuilder, GenericEvent,
-};
+use eventually_event_store_db::{BuilderError, EventStoreBuilder, GenericEvent};
 use futures::stream::StreamExt;
 
 #[tokio::test]

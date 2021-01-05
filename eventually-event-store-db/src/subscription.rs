@@ -7,18 +7,35 @@ use futures::channel::mpsc;
 use futures::future::BoxFuture;
 use futures::stream::StreamExt;
 use std::convert::TryFrom;
+use std::fmt::Display;
 use std::marker::PhantomData;
 
+/// TODO
 pub struct EventSubscription<Id> {
     client: eventstore::Client,
-    stream_id: &'static str,
+    source_id: Id,
     subscription_name: &'static str,
     _p1: PhantomData<Id>,
 }
 
+impl<Id> EventSubscription<Id> {
+    pub(super) fn new(
+        client: eventstore::Client,
+        source_id: Id,
+        subscription_name: &'static str,
+    ) -> Self {
+        EventSubscription {
+            client: client,
+            source_id: source_id,
+            subscription_name: subscription_name,
+            _p1: PhantomData,
+        }
+    }
+}
+
 impl<Id> Subscription for EventSubscription<Id>
 where
-    Id: 'static + Send + Sync + Eq + TryFrom<String> + Clone,
+    Id: 'static + Send + Sync + Eq + TryFrom<String> + Clone + Display,
 {
     type SourceId = Id;
     type Event = GenericEvent;
@@ -29,7 +46,11 @@ where
             let (mut tx, rx) = mpsc::unbounded();
 
             self.client
-                .connect_persistent_subscription(self.stream_id, self.subscription_name)
+                // TODO: add trait bound for `AsRef<str>` instead of `Display`
+                .connect_persistent_subscription(
+                    self.source_id.to_string().as_str(),
+                    self.subscription_name,
+                )
                 .execute()
                 .await
                 .map(|(mut read, mut write)| async move {
@@ -64,7 +85,10 @@ where
     fn checkpoint(&self, version: u32) -> BoxFuture<Result<(), Self::Error>> {
         let fut = async move {
             self.client
-                .update_persistent_subscription(self.stream_id, self.subscription_name)
+                .update_persistent_subscription(
+                    self.source_id.to_string().as_str(),
+                    self.subscription_name,
+                )
                 .execute({
                     let mut settings = PersistentSubscriptionSettings::default();
                     settings.revision = version as u64;

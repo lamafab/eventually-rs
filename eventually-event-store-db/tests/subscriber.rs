@@ -3,9 +3,7 @@ mod common;
 use common::{Event, SourceId};
 use eventually::store::{EventStore, Expected};
 use eventually::EventSubscriber;
-use eventually_event_store_db::{
-    EventStoreBuilder, GenericEvent,
-};
+use eventually_event_store_db::{EventStoreBuilder, GenericEvent};
 use futures::stream::StreamExt;
 use std::collections::HashSet;
 
