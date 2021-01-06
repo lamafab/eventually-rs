@@ -8,12 +8,12 @@ use futures::channel::mpsc;
 use futures::future::BoxFuture;
 use futures::stream::{Stream, StreamExt};
 use futures::task::{Context, Poll};
-use uuid::Uuid;
 use std::convert::TryFrom;
 use std::fmt::Display;
+use std::future::Future;
 use std::marker::PhantomData;
 use std::pin::Pin;
-use std::future::Future;
+use uuid::Uuid;
 
 /// TODO
 pub struct EventSubscription<Id> {
@@ -74,11 +74,13 @@ where
             ))
         }
 
-        async fn y<Id>(mut stream: Pin<&mut PersistentStream<Id>>) -> Option<Result<Persisted<Id, GenericEvent>, StoreError>>
+        async fn y<Id>(
+            mut stream: Pin<&mut PersistentStream<Id>>,
+        ) -> Option<Result<Persisted<Id, GenericEvent>, StoreError>>
         where
             Id: TryFrom<String>,
         {
-            // Scope 
+            // Scope
             let event = {
                 if let Some(event) = stream.as_mut().reader.try_next_event().await.unwrap() {
                     Some(event)
@@ -114,17 +116,15 @@ where
 
     fn resume(&self) -> BoxFuture<Result<SubscriptionStream<Self>, Self::Error>> {
         let fut = async move {
-            let (mut tx, rx) = mpsc::unbounded();
-
             // TODO: add trait bound for `AsRef<str>` instead of `Display`
-            /*
             self.client
                 .delete_persistent_subscription(
                     self.source_id.to_string().as_str(),
                     self.subscription_name,
                 )
-                .execute().await.unwrap();
-            */
+                .execute()
+                .await
+                .unwrap();
 
             self.client
                 .create_persistent_subscription(
@@ -134,7 +134,8 @@ where
                 .execute(PersistentSubscriptionSettings::default())
                 .await?;
 
-            self.client
+            Ok(self
+                .client
                 .connect_persistent_subscription(
                     self.source_id.to_string().as_str(),
                     self.subscription_name,
@@ -142,37 +143,14 @@ where
                 .execute()
                 .await
                 .map(|(mut read, mut write)| async move {
-                    while let Some(sub_event) = read.try_next().await? {
-                        println!("LOOP ENTRY");
-
-                        let mut event = match sub_event {
-                            SubEvent::EventAppeared(resolved) => resolved.event.unwrap(),
-                            _ => continue,
-                        };
-
-                        println!("EVENT: {:?}", event);
-
-                        let stream_id = std::mem::take(&mut event.stream_id);
-                        tx.start_send(Ok(Persisted::from(
-                            Id::try_from(stream_id.clone())
-                                .map_err(|_| StoreError::FailedStreamIdConv(stream_id))?,
-                            GenericEvent::from(event.data),
-                        )
-                        .version(event.revision as u32)
-                        .sequence_number(0)))
-                            .map_err(|_| StoreError::FailedToProcessEvent)?;
-
-                        write.ack(vec![event.id]).await.unwrap();
+                    PersistentStream {
+                        reader: read,
+                        writer: write,
+                        _p1: PhantomData,
                     }
-
-                    println!("*** *** *** OUT");
-
-                    #[allow(unused_qualifications)]
-                    Result::<(), StoreError>::Ok(())
                 })?
-                .await?;
-
-            Ok(rx.boxed())
+                .await
+                .boxed())
         };
 
         Box::pin(fut)
