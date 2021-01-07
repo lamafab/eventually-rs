@@ -8,13 +8,13 @@ use futures::channel::mpsc;
 use futures::future::BoxFuture;
 use futures::stream::{Stream, StreamExt};
 use futures::task::{Context, Poll};
-use uuid::Uuid;
 use std::convert::TryFrom;
 use std::fmt::Display;
 use std::future::Future;
 use std::marker::PhantomData;
 use std::pin::Pin;
 use std::task::Waker;
+use uuid::Uuid;
 
 /// TODO
 pub struct EventSubscription<Id> {
@@ -57,34 +57,38 @@ where
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         // Read the next message.
-        let try_event = match Box::pin(self.as_mut().reader.try_next_event())
-            .as_mut()
-            .poll(cx)
-        {
-            Poll::Ready(event) => event,
-            Poll::Pending => {
-                return Poll::Pending;
-            }
-        };
+        let mut event;
+        loop {
+            let try_event = match Box::pin(self.as_mut().reader.try_next_event())
+                .as_mut()
+                .poll(cx)
+            {
+                Poll::Ready(event) => event,
+                Poll::Pending => {
+                    return Poll::Pending;
+                }
+            };
 
-        // Process event.
-        let mut event = if let Ok(try_resolved) = try_event {
-            if let Some(resolved) = try_resolved {
-                // Successfully resolved an event.
-                if let Some(event) = resolved.event {
-                    event
+            // Process event.
+            if let Ok(try_resolved) = try_event {
+                if let Some(resolved) = try_resolved {
+                    // Successfully resolved an event.
+                    if let Some(recorded) = resolved.event {
+                        event = recorded;
+                        break;
+                    } else {
+                        // Not a valid event type.
+                        return Poll::Ready(Some(Err(StoreError::InvalidEvent)));
+                    }
                 } else {
-                    // Not a valid event type.
-                    return Poll::Ready(Some(Err(StoreError::InvalidEvent)));
+                    // Did not receive an event. Continue until `pending` is returned.
+                    continue;
                 }
             } else {
-                // Did not receive an event.
-                return Poll::Pending;
-            }
-        } else {
-            // Error while attempting to read event.
-            return Poll::Ready(Some(Err(StoreError::from(try_event.unwrap_err()))));
-        };
+                // Error while attempting to read event.
+                return Poll::Ready(Some(Err(StoreError::from(try_event.unwrap_err()))));
+            };
+        }
 
         // Convert event into the `Persisted` type.
         let uuid = event.id;
