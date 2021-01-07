@@ -80,8 +80,7 @@ where
                         return Poll::Ready(Some(Err(StoreError::InvalidEvent)));
                     }
                 } else {
-                    // Did not receive an event. Continue polling until
-                    // `pending` is returned.
+                    // Did not receive an event. Continue polling.
                     continue;
                 }
             } else {

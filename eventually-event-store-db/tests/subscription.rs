@@ -5,7 +5,7 @@ use eventually::store::{EventStore, Expected};
 use eventually::versioning::Versioned;
 use eventually::Subscription;
 use eventually_event_store_db::{EventStoreBuilder, GenericEvent};
-use futures::{executor, stream::StreamExt};
+use futures::stream::StreamExt;
 use std::collections::HashSet;
 
 #[tokio::test]
