@@ -4,7 +4,6 @@ use futures::future::BoxFuture;
 use futures::stream::StreamExt;
 use serde::Serialize;
 use std::convert::{AsRef, TryFrom};
-use std::fmt;
 
 #[derive(Debug, Eq, PartialEq, Serialize)]
 pub struct Event {
