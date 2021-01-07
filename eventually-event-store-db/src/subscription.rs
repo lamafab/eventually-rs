@@ -58,6 +58,9 @@ where
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         // Read the next message.
         let mut event;
+
+        // Poll the reader until either a `Poll::Pending` or a valid event
+        // wrapped in `Poll::Ready(..)` is returned.
         loop {
             let try_event = match Box::pin(self.as_mut().reader.try_next_event())
                 .as_mut()

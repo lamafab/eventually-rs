@@ -29,13 +29,12 @@ async fn event_store_db_persistant_subscription() {
         .await
         .unwrap();
 
-    println!(">>> >>> SIX");
+    // Read events from the beginning.
     let mut stream = subscription.resume().await.unwrap();
 
     let mut expected: HashSet<GenericEvent> =
         [Event::one(), Event::two()].iter().cloned().collect();
 
-    println!(">>> >>> SEVEN");
     while let Some(event) = stream.next().await {
         expected.remove(&event.unwrap().take());
 
@@ -46,13 +45,13 @@ async fn event_store_db_persistant_subscription() {
 
     assert!(expected.is_empty());
 
-    println!(">>> >>> ONE");
+    // Re-read events from the beginning (no checkpoint was set)
     let mut stream = subscription.resume().await.unwrap();
 
     let mut expected: HashSet<GenericEvent> =
         [Event::one(), Event::two()].iter().cloned().collect();
 
-    println!(">>> >>> TWO");
+    // Get the ID of the last event.
     let mut at = None;
     while let Some(event) = stream.next().await {
         let event = event.unwrap();
@@ -60,14 +59,27 @@ async fn event_store_db_persistant_subscription() {
 
         expected.remove(&event.take());
 
-        println!("HIIIII");
         if expected.is_empty() {
             break;
         }
     }
 
-    println!(">>> >>> THREE");
     assert!(expected.is_empty());
 
+    // Set checkpoint
     subscription.checkpoint(at.unwrap()).await.unwrap();
+
+    // Read events after checkpoint
+    let mut stream = subscription.resume().await.unwrap();
+
+    let mut expected: HashSet<GenericEvent> =
+        [Event::three(), Event::four()].iter().cloned().collect();
+
+    while let Some(event) = stream.next().await {
+        expected.remove(&event.unwrap().take());
+
+        if expected.is_empty() {
+            break;
+        }
+    }
 }
