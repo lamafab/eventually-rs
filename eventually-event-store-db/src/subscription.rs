@@ -1,10 +1,9 @@
 use super::store::StoreError;
 use super::GenericEvent;
-use eventstore::prelude::{SubEvent, SubscriptionRead, SubscriptionWrite};
-use eventstore::{PersistentSubscriptionSettings, ResolvedEvent};
-use eventually::store::{persistent, Persisted};
+use eventstore::prelude::{SubscriptionRead, SubscriptionWrite};
+use eventstore::PersistentSubscriptionSettings;
+use eventually::store::Persisted;
 use eventually::subscription::{Subscription, SubscriptionStream};
-use futures::channel::mpsc;
 use futures::future::BoxFuture;
 use futures::stream::{Stream, StreamExt};
 use futures::task::{Context, Poll};
@@ -13,8 +12,6 @@ use std::fmt::Display;
 use std::future::Future;
 use std::marker::PhantomData;
 use std::pin::Pin;
-use std::task::Waker;
-use uuid::Uuid;
 
 /// TODO
 pub struct EventSubscription<Id> {
@@ -43,7 +40,6 @@ impl<Id> EventSubscription<Id> {
 pub struct PersistentStream<Id> {
     reader: SubscriptionRead,
     writer: SubscriptionWrite,
-    waker: Option<Waker>,
     _p1: PhantomData<Id>,
 }
 
@@ -155,11 +151,10 @@ where
                 )
                 .execute()
                 .await
-                .map(|(mut read, mut write)| async move {
+                .map(|(reader, writer)| async move {
                     PersistentStream {
-                        reader: read,
-                        writer: write,
-                        waker: None,
+                        reader: reader,
+                        writer: writer,
                         _p1: PhantomData,
                     }
                 })?
