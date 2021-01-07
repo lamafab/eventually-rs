@@ -2,18 +2,19 @@ use super::store::StoreError;
 use super::GenericEvent;
 use eventstore::prelude::{SubEvent, SubscriptionRead, SubscriptionWrite};
 use eventstore::{PersistentSubscriptionSettings, ResolvedEvent};
-use eventually::store::Persisted;
+use eventually::store::{persistent, Persisted};
 use eventually::subscription::{Subscription, SubscriptionStream};
 use futures::channel::mpsc;
 use futures::future::BoxFuture;
 use futures::stream::{Stream, StreamExt};
 use futures::task::{Context, Poll};
+use uuid::Uuid;
 use std::convert::TryFrom;
 use std::fmt::Display;
 use std::future::Future;
 use std::marker::PhantomData;
 use std::pin::Pin;
-use uuid::Uuid;
+use std::task::Waker;
 
 /// TODO
 pub struct EventSubscription<Id> {
@@ -42,6 +43,7 @@ impl<Id> EventSubscription<Id> {
 pub struct PersistentStream<Id> {
     reader: SubscriptionRead,
     writer: SubscriptionWrite,
+    waker: Option<Waker>,
     _p1: PhantomData<Id>,
 }
 
@@ -54,47 +56,58 @@ where
     type Item = Result<Persisted<Id, GenericEvent>, StoreError>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        fn x<Id>(resolved: ResolvedEvent) -> Result<(Persisted<Id, GenericEvent>, Uuid), StoreError>
-        where
-            Id: TryFrom<String>,
-        {
-            let mut event = resolved.event.unwrap();
-            let uuid = event.id;
-            let stream_id = std::mem::take(&mut event.stream_id);
-
-            Ok((
-                Persisted::from(
-                    Id::try_from(stream_id.clone())
-                        .map_err(|_| StoreError::FailedStreamIdConv(stream_id))?,
-                    GenericEvent::from(event.data),
-                )
-                .version(event.revision as u32)
-                .sequence_number(0),
-                uuid,
-            ))
-        }
-
-        let event = match Box::pin(self.as_mut().reader.try_next_event())
+        // Read the next message.
+        let try_event = match Box::pin(self.as_mut().reader.try_next_event())
             .as_mut()
             .poll(cx)
         {
             Poll::Ready(event) => event,
-            Poll::Pending => return Poll::Pending,
+            Poll::Pending => {
+                return Poll::Pending;
+            }
         };
 
-        let processed = x::<Id>(event.unwrap().unwrap());
-
-        if let Ok((_, uuid)) = processed {
-            match Box::pin(self.as_mut().writer.ack(vec![uuid]))
-                .as_mut()
-                .poll(cx)
-            {
-                Poll::Ready(_) => {}
-                Poll::Pending => return Poll::Pending,
+        // Process event.
+        let mut event = if let Ok(try_resolved) = try_event {
+            if let Some(resolved) = try_resolved {
+                // Successfully resolved an event.
+                if let Some(event) = resolved.event {
+                    event
+                } else {
+                    // Not a valid event type.
+                    return Poll::Ready(Some(Err(StoreError::InvalidEvent)));
+                }
+            } else {
+                // Did not receive an event.
+                return Poll::Pending;
             }
+        } else {
+            // Error while attempting to read event.
+            return Poll::Ready(Some(Err(StoreError::from(try_event.unwrap_err()))));
+        };
+
+        // Convert event into the `Persisted` type.
+        let uuid = event.id;
+        let stream_id = std::mem::take(&mut event.stream_id);
+
+        let persisted_event = Persisted::from(
+            Id::try_from(stream_id.clone())
+                .map_err(|_| StoreError::FailedStreamIdConv(stream_id))?,
+            GenericEvent::from(event.data),
+        )
+        .version(event.revision as u32)
+        .sequence_number(0); // <-- will be removed.
+
+        // Send acknowledgement to the server.
+        match Box::pin(self.as_mut().writer.ack(vec![uuid]))
+            .as_mut()
+            .poll(cx)
+        {
+            Poll::Ready(_) => {}
+            Poll::Pending => return Poll::Pending,
         }
 
-        Poll::Ready(Some(processed.map(|(persisted, _)| persisted)))
+        Poll::Ready(Some(Ok(persisted_event)))
     }
 }
 
@@ -138,6 +151,7 @@ where
                     PersistentStream {
                         reader: read,
                         writer: write,
+                        waker: None,
                         _p1: PhantomData,
                     }
                 })?

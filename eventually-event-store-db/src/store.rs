@@ -60,6 +60,9 @@ pub enum StoreError {
     /// TODO
     #[error("failed to process event from stream, receiver dropped")]
     FailedToProcessEvent,
+    /// TODO
+    #[error("invalid event type")]
+    InvalidEvent,
 }
 
 impl AppendError for StoreError {
