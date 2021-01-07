@@ -53,7 +53,7 @@ where
 {
     type Item = Result<Persisted<Id, GenericEvent>, StoreError>;
 
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         fn x<Id>(resolved: ResolvedEvent) -> Result<(Persisted<Id, GenericEvent>, Uuid), StoreError>
         where
             Id: TryFrom<String>,
@@ -74,35 +74,27 @@ where
             ))
         }
 
-        async fn y<Id>(
-            mut stream: Pin<&mut PersistentStream<Id>>,
-        ) -> Option<Result<Persisted<Id, GenericEvent>, StoreError>>
-        where
-            Id: TryFrom<String>,
+        let event = match Box::pin(self.as_mut().reader.try_next_event())
+            .as_mut()
+            .poll(cx)
         {
-            // Scope
-            let event = {
-                if let Some(event) = stream.as_mut().reader.try_next_event().await.unwrap() {
-                    Some(event)
-                } else {
-                    None
-                }
-            };
+            Poll::Ready(event) => event,
+            Poll::Pending => return Poll::Pending,
+        };
 
-            if let Some(event) = event {
-                let processed = x::<Id>(event);
+        let processed = x::<Id>(event.unwrap().unwrap());
 
-                if let Ok((_, uuid)) = processed {
-                    stream.as_mut().writer.ack(vec![uuid]).await.unwrap();
-                }
-
-                Some(processed.map(|(persisted, _)| persisted))
-            } else {
-                None
+        if let Ok((_, uuid)) = processed {
+            match Box::pin(self.as_mut().writer.ack(vec![uuid]))
+                .as_mut()
+                .poll(cx)
+            {
+                Poll::Ready(_) => {}
+                Poll::Pending => return Poll::Pending,
             }
         }
 
-        Box::pin(y(self)).as_mut().poll(cx)
+        Poll::Ready(Some(processed.map(|(persisted, _)| persisted)))
     }
 }
 
