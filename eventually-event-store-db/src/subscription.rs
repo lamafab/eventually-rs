@@ -7,8 +7,7 @@ use eventually::subscription::{Subscription, SubscriptionStream};
 use futures::future::BoxFuture;
 use futures::stream::{Stream, StreamExt};
 use futures::task::{Context, Poll};
-use std::convert::TryFrom;
-use std::fmt::Display;
+use std::convert::{AsRef, TryFrom};
 use std::future::Future;
 use std::marker::PhantomData;
 use std::pin::Pin;
@@ -116,7 +115,7 @@ where
 
 impl<Id> Subscription for EventSubscription<Id>
 where
-    Id: 'static + Send + Sync + Eq + TryFrom<String> + Clone + Display,
+    Id: 'static + Send + Sync + Eq + TryFrom<String> + Clone + AsRef<str>,
 {
     type SourceId = Id;
     type Event = GenericEvent;
@@ -126,28 +125,19 @@ where
         let fut = async move {
             // TODO: add trait bound for `AsRef<str>` instead of `Display`
             self.client
-                .delete_persistent_subscription(
-                    self.source_id.to_string().as_str(),
-                    self.subscription_name,
-                )
+                .delete_persistent_subscription(self.source_id.as_ref(), self.subscription_name)
                 .execute()
                 .await
                 .unwrap();
 
             self.client
-                .create_persistent_subscription(
-                    self.source_id.to_string().as_str(),
-                    self.subscription_name,
-                )
+                .create_persistent_subscription(self.source_id.as_ref(), self.subscription_name)
                 .execute(PersistentSubscriptionSettings::default())
                 .await?;
 
             Ok(self
                 .client
-                .connect_persistent_subscription(
-                    self.source_id.to_string().as_str(),
-                    self.subscription_name,
-                )
+                .connect_persistent_subscription(self.source_id.as_ref(), self.subscription_name)
                 .execute()
                 .await
                 .map(|(reader, writer)| async move {
@@ -167,10 +157,7 @@ where
     fn checkpoint(&self, version: u32) -> BoxFuture<Result<(), Self::Error>> {
         let fut = async move {
             self.client
-                .update_persistent_subscription(
-                    self.source_id.to_string().as_str(),
-                    self.subscription_name,
-                )
+                .update_persistent_subscription(self.source_id.as_ref(), self.subscription_name)
                 .execute({
                     let mut settings = PersistentSubscriptionSettings::default();
                     settings.revision = version as u64;

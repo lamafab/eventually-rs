@@ -2,8 +2,7 @@ use super::store::{process_stream, StoreError};
 use super::GenericEvent;
 use eventually::subscription::EventStream;
 use futures::future::BoxFuture;
-use std::convert::TryFrom;
-use std::fmt::Display;
+use std::convert::{AsRef, TryFrom};
 use std::marker::PhantomData;
 
 /// TODO
@@ -23,7 +22,7 @@ impl<Id> EventSubscriber<Id> {
 
 impl<Id> eventually::EventSubscriber for EventSubscriber<Id>
 where
-    Id: 'static + Send + Sync + Eq + Display + TryFrom<String> + Clone,
+    Id: 'static + Send + Sync + Eq + TryFrom<String> + Clone + AsRef<str>,
 {
     type SourceId = Id;
     type Event = GenericEvent;

@@ -9,8 +9,7 @@ use eventually::store::{AppendError, EventStream, Expected, Persisted, Select};
 use futures::future::BoxFuture;
 use futures::stream::{empty as empty_stream, Stream, StreamExt};
 use serde_json::error::Error as SerdeError;
-use std::convert::TryFrom;
-use std::fmt::Display;
+use std::convert::{AsRef, TryFrom};
 use std::marker::PhantomData;
 use std::time::Duration;
 use tokio::time;
@@ -107,7 +106,7 @@ impl<Id> EventStore<Id> {
 
 impl<Id> eventually::EventStore for EventStore<Id>
 where
-    Id: 'static + Send + Sync + Eq + Display + Clone + TryFrom<String>,
+    Id: 'static + Send + Sync + Eq + Clone + TryFrom<String> + AsRef<str>,
 {
     type SourceId = Id;
     type Event = GenericEvent;
@@ -122,7 +121,7 @@ where
         let fut = async move {
             let next_version = self
                 .client
-                .write_events(format!("{}", source_id))
+                .write_events(source_id.as_ref())
                 .expected_version({
                     match version {
                         Expected::Any => ExpectedVersion::Any,
@@ -153,7 +152,7 @@ where
     ) -> BoxFuture<Result<EventStream<Self>>> {
         let fut = async move {
             self.client
-                .read_stream(format!("{}", source_id))
+                .read_stream(source_id.as_ref())
                 .start_from({
                     match select {
                         Select::All => 0,
@@ -202,11 +201,11 @@ where
         Box::pin(fut)
     }
 
-    fn remove(&mut self, id: Self::SourceId) -> BoxFuture<Result<()>> {
+    fn remove(&mut self, source_id: Self::SourceId) -> BoxFuture<Result<()>> {
         let fut = async move {
             Ok(self
                 .client
-                .delete_stream(format!("{}", id))
+                .delete_stream(source_id.as_ref())
                 .soft_delete()
                 .execute()
                 .await
@@ -223,7 +222,7 @@ pub(crate) fn process_stream<Id>(
     stream: Box<dyn Stream<Item = std::result::Result<ResolvedEvent, EsError>> + Send + Unpin>,
 ) -> Result<EventStream<'static, EventStore<Id>>>
 where
-    Id: 'static + Send + Sync + Eq + Display + Clone + TryFrom<String>,
+    Id: 'static + Send + Sync + Eq + Clone + TryFrom<String> + AsRef<str>,
 {
     Ok(stream
         .map(move |resolved| {

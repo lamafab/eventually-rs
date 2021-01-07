@@ -3,7 +3,7 @@ use eventually_event_store_db::{EventStore as EventStoreDB, GenericEvent, StoreE
 use futures::future::BoxFuture;
 use futures::stream::StreamExt;
 use serde::Serialize;
-use std::convert::TryFrom;
+use std::convert::{AsRef, TryFrom};
 use std::fmt;
 
 #[derive(Debug, Eq, PartialEq, Serialize)]
@@ -69,18 +69,16 @@ impl TryFrom<String> for SourceId {
     }
 }
 
-impl fmt::Display for SourceId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", {
-            match self {
-                SourceId::Foo => "foo",
-                SourceId::Bar => "bar",
-                SourceId::Baz => "baz",
-                SourceId::Fum => "fum",
-                SourceId::Grunt => "grunt",
-                _ => unimplemented!(),
-            }
-        })
+impl AsRef<str> for SourceId {
+    fn as_ref(&self) -> &str {
+        match self {
+            SourceId::Foo => "foo",
+            SourceId::Bar => "bar",
+            SourceId::Baz => "baz",
+            SourceId::Fum => "fum",
+            SourceId::Grunt => "grunt",
+            _ => unimplemented!(),
+        }
     }
 }
 
