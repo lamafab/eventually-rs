@@ -83,6 +83,7 @@ impl EventStoreBuilder {
         })
     }
     /// TODO
+    #[cfg(feature = "verify-connection")]
     pub async fn verify_connection(&self, timeout: u64) -> Result<()> {
         EventStore::<()>::verify_connection(&self.client, timeout)
             .await

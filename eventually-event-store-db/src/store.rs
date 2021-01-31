@@ -12,7 +12,6 @@ use serde_json::error::Error as SerdeError;
 use std::convert::{AsRef, TryFrom};
 use std::marker::PhantomData;
 use std::time::Duration;
-use tokio::time;
 
 // TODO: Rename to `StoreResult`?
 type Result<T> = std::result::Result<T, StoreError>;
@@ -86,8 +85,9 @@ impl<Id> EventStore<Id> {
             _p1: PhantomData,
         }
     }
+    #[cfg(feature = "verify-connection")]
     pub(super) async fn verify_connection(client: &EsClient, timeout: u64) -> Result<()> {
-        time::timeout(Duration::from_secs(timeout), async move {
+        tokio::time::timeout(Duration::from_secs(timeout), async move {
             // Attempt to read from stream ID. It's irrelevant whether the
             // stream ID exists or not.
             let _ = client
