@@ -90,7 +90,7 @@ impl EventStoreBuilder {
             .map_err(|_| BuilderError::VerificationTimeout)
     }
     /// Builds the event store instance. This function can be called multiple times.
-    pub fn build_store<Id>(&self) -> EventStore<Id> {
+    pub fn build_store<Id: Clone>(&self) -> EventStore<Id> {
         EventStore::new(self.client.clone())
     }
     /// TODO

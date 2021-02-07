@@ -73,12 +73,13 @@ impl AppendError for StoreError {
 }
 
 /// TODO
-pub struct EventStore<Id> {
+#[derive(Clone)]
+pub struct EventStore<Id: Clone> {
     client: EsClient,
     _p1: PhantomData<Id>,
 }
 
-impl<Id> EventStore<Id> {
+impl<Id: Clone> EventStore<Id> {
     pub(super) fn new(client: EsClient) -> EventStore<Id> {
         EventStore {
             client: client,
