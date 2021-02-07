@@ -15,7 +15,7 @@ keywords = ["event-store-db", "eventstoredb", "eventually", "event-store", "ddd"
 verify-connection = ["tokio"]
 
 [dependencies]
-tokio = { version = "0.2", features = ["sync", "macros", "time"], optional = true }
+tokio = { version = "1.2.0", features = ["sync", "macros", "time"], optional = true }
 serde = { version = "1.0.118", features = ["derive"] }
 serde_json = "1.0.61"
 bytes = "0.5.6"
